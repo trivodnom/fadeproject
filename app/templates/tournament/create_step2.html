@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block page_title %}Select Matches for {{ tournament.name }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header"><h5 class="card-title">Leagues</h5></div>
+            <div class="list-group list-group-flush" id="leagues-list">
+                {% for league_name, league_id in leagues.items() %}
+                <a href="#" class="list-group-item list-group-item-action" data-league-id="{{ league_id }}">
+                    {{ league_name }}
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header"><h5 class="card-title">Selected Matches</h5></div>
+            <div class="card-body" id="selected-matches-container">
+                <p>No matches selected yet.</p>
+                <ul class="list-unstyled" id="selected-list"></ul>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-8">
+         <div class="card">
+            <div class="card-header"><h5 class="card-title">Available Matches</h5></div>
+            <div class="card-body" id="matches-container">
+                <p>Select a league to see available matches.</p>
+            </div>
+        </div>
+    </div>
+</div>
+<hr>
+<div class="row">
+    <div class="col-12 text-center">
+        <form id="finish-form" action="{{ url_for('tournaments.select_matches', tournament_id=tournament.id) }}" method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <input type="hidden" name="selected_matches_json" id="selected_matches_json">
+            <button type="submit" class="btn btn-fill btn-success">Finish and Create Tournament</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+
+{% block scripts %}
+{{ super() }}
+<script>
+$(document).ready(function(){
+    var selectedMatches = {};
+
+    function renderSelectedMatches() {
+        var list = $('#selected-list');
+        var container = $('#selected-matches-container');
+        list.empty();
+
+        if (Object.keys(selectedMatches).length === 0) {
+            container.find('p').show();
+        } else {
+            container.find('p').hide();
+            $.each(selectedMatches, function(id, match){
+                var listItem = $('<li class="d-flex justify-content-between align-items-center mb-2">');
+                var matchDate = new Date(match.fixture.date);
+                var formattedDate = matchDate.toLocaleString('ru-RU', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                listItem.html('<span>' + match.teams.home.name + ' vs ' + match.teams.away.name + '<br><small class="text-muted">' + formattedDate + '</small></span>');
+                
+                var removeBtn = $('<button class="btn btn-danger btn-sm">&times;</button>');
+                removeBtn.data('match-id', id);
+                listItem.append(removeBtn);
+                list.append(listItem);
+            });
+        }
+    }
+
+    $('#leagues-list').on('click', 'a', function(e){
+        e.preventDefault();
+        var leagueId = $(this).data('league-id');
+        var matchesContainer = $('#matches-container');
+        matchesContainer.html('<p>Loading matches...</p>');
+
+        $.getJSON('/tournaments/get_matches/' + leagueId, function(data) {
+            matchesContainer.empty();
+            if (data && data.length > 0) {
+                var table = $('<table class="table"><tbody></tbody></table>');
+                $.each(data, function(i, match){
+                    var row = $('<tr>');
+                    var cell = $('<td class="d-flex justify-content-between align-items-center">');
+                    var matchDate = new Date(match.fixture.date);
+                    var formattedDate = matchDate.toLocaleString('ru-RU', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                    cell.html('<span>' + match.teams.home.name + ' vs ' + match.teams.away.name + '<br><small class="text-muted">' + formattedDate + '</small></span>');
+                    
+                    var addButton = $('<button class="btn btn-primary btn-sm">Add</button>');
+                    addButton.data('match-info', match);
+                    
+                    if(selectedMatches[match.fixture.id]){
+                        addButton.prop('disabled', true).text('Added');
+                    }
+
+                    cell.append(addButton);
+                    row.append(cell);
+                    table.find('tbody').append(row);
+                });
+                matchesContainer.append(table);
+            } else {
+                matchesContainer.html('<p>No available matches found for this league.</p>');
+            }
+        }).fail(function() {
+            matchesContainer.html('<p class="text-danger">Error loading matches.</p>');
+        });
+    });
+
+    $('#matches-container').on('click', '.btn-primary', function() {
+        var matchInfo = $(this).data('match-info');
+        selectedMatches[matchInfo.fixture.id] = matchInfo;
+        $(this).prop('disabled', true).text('Added');
+        renderSelectedMatches();
+    });
+
+    $('#selected-matches-container').on('click', '.btn-danger', function() {
+        var matchId = $(this).data('match-id');
+        delete selectedMatches[matchId];
+        renderSelectedMatches();
+        $('#matches-container button').filter(function() {
+            return $(this).data('match-info') && $(this).data('match-info').fixture.id == matchId;
+        }).prop('disabled', false).text('Add');
+    });
+    
+    $('#finish-form').on('submit', function(){
+        $('#selected_matches_json').val(JSON.stringify(Object.values(selectedMatches)));
+    });
+});
+</script>
+{% endblock %}

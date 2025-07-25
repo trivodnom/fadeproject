@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block page_title %}{{ tournament.name }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header"><h4 class="card-title">Matches</h4></div>
+            <div class="card-body">
+                {% if matches %}
+                <div class="table-responsive">
+                    <table class="table tablesorter">
+                        <thead class="text-primary">
+                            <tr>
+                                <th>Date</th>
+                                <th>Match</th>
+                                <th class="text-center">Your Prediction</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for match in matches %}
+                            <tr>
+                                <td>{{ match.fixture.date | format_datetime }}</td>
+                                <td>
+                                    <img src="{{ match.teams.home.logo }}" style="width: 24px; height: 24px; vertical-align: middle; margin-right: 5px;">
+                                    {{ match.teams.home.name }} vs {{ match.teams.away.name }}
+                                    <img src="{{ match.teams.away.logo }}" style="width: 24px; height: 24px; vertical-align: middle; margin-left: 5px;">
+                                </td>
+                                <td class="text-center">
+    {% if current_user.is_authenticated and tournament in current_user.tournaments %}
+        {% set prediction = user_predictions.get(match.fixture.id) %}
+
+        <!-- Обертка для переключения -->
+        <div class="prediction-wrapper">
+            <!-- Состояние 1: Прогноз есть. Показываем его и кнопку Edit. -->
+            <div class="prediction-view" {% if not prediction or prediction.home_score_prediction is none %}style="display: none;"{% endif %}>
+                <strong>{{ prediction.home_score_prediction if prediction }} : {{ prediction.away_score_prediction if prediction }}</strong>
+                <a href="#" class="btn btn-secondary btn-sm ml-2 edit-prediction">Edit</a>
+            </div>
+
+            <!-- Состояние 2: Форма для ввода/редактирования (может быть скрыта) -->
+            <form action="{{ url_for('tournaments.make_prediction', tournament_id=tournament.id) }}" method="post" class="form-inline justify-content-center prediction-form" {% if prediction and prediction.home_score_prediction is not none %}style="display: none;"{% endif %}>
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <input type="hidden" name="match_id" value="{{ match.fixture.id }}">
+                <input type="number" name="home_score" class="form-control form-control-sm" style="width: 60px;" value="{{ prediction.home_score_prediction if prediction is not none else '' }}">
+                <span class="mx-2">:</span>
+                <input type="number" name="away_score" class="form-control form-control-sm" style="width: 60px;" value="{{ prediction.away_score_prediction if prediction is not none else '' }}">
+                <button type="submit" class="btn btn-primary btn-sm ml-2">Save</button>
+            </form>
+        </div>
+    {% else %}
+        - : -
+    {% endif %}
+</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p>There are no matches for this tournament.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header"><h4 class="card-title">{{ tournament.name }}</h4></div>
+            <div class="card-body">
+                <p>{{ tournament.description }}</p>
+                <hr>
+                <p><strong>Entry Fee:</strong> {{ tournament.entry_fee }}</p>
+                <p><strong>Current Prize Pool:</strong> {{ tournament.entry_fee * tournament.attendees.count() }}</p>
+                <p><strong>Participants:</strong> {{ tournament.attendees.count() }} / {{ tournament.max_participants or 'Unlimited' }}</p>
+                <p><strong>Starts:</strong> {{ tournament.start_date.strftime('%Y-%m-%d') if tournament.start_date }}</p>
+                <hr>
+                {% if current_user.is_authenticated %}
+                    <form action="{{ url_for('tournaments.join_or_leave_tournament', tournament_id=tournament.id) }}" method="post">
+                        {{ form.hidden_tag() }}
+                        {% if tournament in current_user.tournaments %}
+                            <button type="submit" name="action" value="leave" class="btn btn-danger btn-block">Leave Tournament</button>
+                        {% else %}
+                            <button type="submit" name="action" value="join" class="btn btn-success btn-block">Join Tournament</button>
+                        {% endif %}
+                    </form>
+                {% endif %}
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header"><h4 class="card-title">Leaderboard</h4></div>
+            <div class="card-body">
+                <table class="table tablesorter">
+                    <thead class="text-primary">
+                        <tr><th>Rank</th><th>User</th><th>Points</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for username, points in leaderboard %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td>{{ username }}</td>
+                            <td>{{ points or 0 }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="3">No participants yet.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+{{ super() }}
+<script>
+$(document).ready(function(){
+    $('.edit-prediction').on('click', function(e){
+        e.preventDefault();
+        var wrapper = $(this).closest('.prediction-wrapper');
+        wrapper.find('.prediction-view').hide();
+        wrapper.find('.prediction-form').show();
+    });
+});
+</script>
+{% endblock %}

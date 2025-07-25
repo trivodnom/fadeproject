@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block page_title %}User Profile{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="title">Edit Profile</h5>
+            </div>
+            <div class="card-body">
+                <form action="" method="post">
+                    {{ form.hidden_tag() }}
+                    <div class="form-group">
+                        {{ form.username.label(class="form-control-label") }}
+                        {{ form.username(class="form-control") }}
+                        {% for error in form.username.errors %}
+                        <small class="form-text text-danger">{{ error }}</small>
+                        {% endfor %}
+                    </div>
+                    <div class="form-group">
+                        {{ form.email.label(class="form-control-label") }}
+                        {{ form.email(class="form-control") }}
+                        {% for error in form.email.errors %}
+                        <small class="form-text text-danger">{{ error }}</small>
+                        {% endfor %}
+                    </div>
+                    <div class="card-footer">
+                        {{ form.submit(class="btn btn-fill btn-primary") }}
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h5 class="title">Balance History</h5>
+            </div>
+            <div class="card-body">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Description</th>
+                            <th>Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in history %}
+                        <tr>
+                            <td>{{ item.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+                            <td>{{ item.description }}</td>
+                            <td>{{ "%.2f"|format(item.amount) }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="3">No transactions yet.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card card-user">
+            <div class="card-body">
+                <p class="card-text">
+                    <div class="author">
+                        <div class="block block-one"></div>
+                        <div class="block block-two"></div>
+                        <div class="block block-three"></div>
+                        <div class="block block-four"></div>
+                        <a href="javascript:void(0)">
+                            <img class="avatar" src="{{ url_for('static', filename='img/anime3.png') }}" alt="...">
+                            <h5 class="title">{{ current_user.username }}</h5>
+                        </a>
+                        <p class="description">
+                            Role: {{ current_user.role.title() }}
+                        </p>
+                    </div>
+                </p>
+                <div class="card-description">
+                    Current Balance: <strong>{{ "%.2f"|format(current_user.balance) }}</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
