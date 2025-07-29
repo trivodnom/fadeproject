@@ -3,6 +3,11 @@ from app import db, login
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 
+participants = db.Table('participants',
+    db.Column('user_id', db.Integer, db.ForeignKey('user.id'), primary_key=True),
+    db.Column('tournament_id', db.Integer, db.ForeignKey('tournament.id'), primary_key=True)
+)
+
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(64), index=True, unique=True)
@@ -10,6 +15,11 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(128))
     role = db.Column(db.String(10), default='user')
     balance = db.Column(db.Float, default=0.0)
+
+    # ЯВНО УКАЗЫВАЕМ СВЯЗЬ
+    tournaments = db.relationship('Tournament', secondary=participants, back_populates='attendees')
+    predictions = db.relationship('Prediction', back_populates='user', lazy='dynamic')
+    balance_history = db.relationship('BalanceHistory', back_populates='user', lazy='dynamic')
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -24,41 +34,22 @@ class User(UserMixin, db.Model):
 def load_user(id):
     return User.query.get(int(id))
 
-class BalanceHistory(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    amount = db.Column(db.Float, nullable=False)
-    description = db.Column(db.String(128))
-    timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)
-    user = db.relationship('User', backref=db.backref('balance_history', lazy=True))
-
-    def __repr__(self):
-        return f'<BalanceHistory {self.description}>'
-
-# --- НОВЫЕ МОДЕЛИ ---
-participants = db.Table('participants',
-    db.Column('user_id', db.Integer, db.ForeignKey('user.id'), primary_key=True),
-    db.Column('tournament_id', db.Integer, db.ForeignKey('tournament.id'), primary_key=True)
-)
-
 class Tournament(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(140), nullable=False)
-    leagues = db.Column(db.String(200)) # Будем хранить ID лиг через запятую, например "39,140,78"
-    matches = db.Column(db.Text) # Будем хранить ID матчей из API через запятую
-    description = db.Column(db.Text)
-    entry_fee = db.Column(db.Float, nullable=False, default=0)
-    prize_pool = db.Column(db.Float, nullable=False, default=0)
-    start_date = db.Column(db.DateTime, nullable=True) # Разрешаем быть пустым
-    end_date = db.Column(db.DateTime, nullable=True)   # Разрешаем быть пустым
-    status = db.Column(db.String(20), default='open')
-    max_participants = db.Column(db.Integer)
+    description = db.Column(db.Text, nullable=True)
+    entry_fee = db.Column(db.Float, nullable=False, default=0.0)
+    start_date = db.Column(db.DateTime, index=True, default=datetime.utcnow)
+    status = db.Column(db.String(20), default='upcoming') # upcoming, active, finished, cancelled
+    max_participants = db.Column(db.Integer, nullable=True)
     prize_places = db.Column(db.Integer, default=1)
+    manual_results = db.Column(db.Boolean, default=False)
+    league_id = db.Column(db.Integer, nullable=True) # <-- Это поле можно удалить или оставить, оно больше не главное
+    matches_json = db.Column(db.Text, nullable=True)
 
-    attendees = db.relationship(
-        'User', secondary=participants,
-        backref=db.backref('tournaments', lazy='dynamic'), lazy='dynamic'
-    )
+    # ЯВНО УКАЗЫВАЕМ ОБРАТНУЮ СВЯЗЬ
+    attendees = db.relationship('User', secondary=participants, back_populates='tournaments')
+    predictions = db.relationship('Prediction', back_populates='tournament', lazy='dynamic', cascade="all, delete-orphan")
 
     def __repr__(self):
         return f'<Tournament {self.name}>'
@@ -67,29 +58,34 @@ class Prediction(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     tournament_id = db.Column(db.Integer, db.ForeignKey('tournament.id'), nullable=False)
-
-    # Match information saved from the API
-    match_id = db.Column(db.Integer, nullable=False)
-    match_date = db.Column(db.DateTime, nullable=False)
-    home_team_name = db.Column(db.String(100))
-    home_team_logo = db.Column(db.String(255))
-    away_team_name = db.Column(db.String(100))
-    away_team_logo = db.Column(db.String(255))
-
-    # User's prediction
+    match_id = db.Column(db.String(50), nullable=False)
+    home_team = db.Column(db.String(100))
+    away_team = db.Column(db.String(100))
+    match_date = db.Column(db.DateTime)
     home_score_prediction = db.Column(db.Integer)
     away_score_prediction = db.Column(db.Integer)
-
-    # Result
+    home_score_actual = db.Column(db.Integer)
+    away_score_actual = db.Column(db.Integer)
     points_awarded = db.Column(db.Integer, default=0)
 
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    # ЯВНО УКАЗЫВАЕМ СВЯЗИ
+    user = db.relationship('User', back_populates='predictions')
+    tournament = db.relationship('Tournament', back_populates='predictions')
 
-    user = db.relationship('User', backref='predictions')
-    tournament = db.relationship('Tournament', backref='predictions')
-
-    # Unique prediction from one user for one match within a tournament
     __table_args__ = (db.UniqueConstraint('user_id', 'tournament_id', 'match_id', name='_user_tournament_match_uc'),)
 
     def __repr__(self):
-        return f'<Prediction user:{self.user_id} match:{self.match_id}>'
+        return f'<Prediction for match {self.match_id} by {self.user.username} in {self.tournament.name}>'
+
+class BalanceHistory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    change_amount = db.Column(db.Float, nullable=False)
+    new_balance = db.Column(db.Float, nullable=False)
+    description = db.Column(db.String(200))
+    timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)
+
+    user = db.relationship('User', back_populates='balance_history')
+
+    def __repr__(self):
+        return f'<BalanceHistory for {self.user.username}: {self.change_amount}>'

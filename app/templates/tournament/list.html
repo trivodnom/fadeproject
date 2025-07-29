@@ -20,13 +20,15 @@ Tournaments
         <div class="card">
             <div class="card-header">
                 <h5 class="card-title">{{ tournament.name }}</h5>
-                <p class="card-category">Prize Pool: {{ tournament.entry_fee * tournament.attendees.count() }}</p>
+                <!-- ИСПРАВЛЕНИЕ 1 -->
+                <p class="card-category">Prize Pool: {{ tournament.entry_fee * (tournament.attendees|length) }}</p>
             </div>
             <div class="card-body">
                 <p><strong>Entry Fee:</strong> {{ tournament.entry_fee }}</p>
                 <p><strong>Starts:</strong> {{ tournament.start_date.strftime('%Y-%m-%d') if tournament.start_date }}</p>
                 <p><strong>Ends:</strong> {{ tournament.end_date.strftime('%Y-%m-%d') if tournament.end_date }}</p>
-                <p><strong>Participants:</strong> {{ tournament.attendees.count() }} / {{ tournament.max_participants or 'Unlimited' }}</p>
+                <!-- ИСПРАВЛЕНИЕ 2 -->
+                <p><strong>Participants:</strong> {{ tournament.attendees|length }} / {{ tournament.max_participants or 'Unlimited' }}</p>
                 <p><strong>Prize Places:</strong> {{ tournament.prize_places }}</p>
             </div>
             <div class="card-footer">

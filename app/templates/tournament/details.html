@@ -15,6 +15,7 @@
                             <tr>
                                 <th>Date</th>
                                 <th>Match</th>
+                                <th class="text-center">Result</th>
                                 <th class="text-center">Your Prediction</th>
                             </tr>
                         </thead>
@@ -28,31 +29,52 @@
                                     <img src="{{ match.teams.away.logo }}" style="width: 24px; height: 24px; vertical-align: middle; margin-left: 5px;">
                                 </td>
                                 <td class="text-center">
-    {% if current_user.is_authenticated and tournament in current_user.tournaments %}
-        {% set prediction = user_predictions.get(match.fixture.id) %}
+                                    {% set prediction = user_predictions.get(match.fixture.id | string) %}
+                                    {% if prediction and prediction.home_score_actual is not none %}
+                                        <strong>{{ prediction.home_score_actual }} : {{ prediction.away_score_actual }}</strong>
+                                    {% else %}
+                                        - : -
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    {% if current_user.is_authenticated and tournament in current_user.tournaments %}
+                                        {% set prediction = user_predictions.get(match.fixture.id | string) %}
 
-        <!-- Обертка для переключения -->
-        <div class="prediction-wrapper">
-            <!-- Состояние 1: Прогноз есть. Показываем его и кнопку Edit. -->
-            <div class="prediction-view" {% if not prediction or prediction.home_score_prediction is none %}style="display: none;"{% endif %}>
-                <strong>{{ prediction.home_score_prediction if prediction }} : {{ prediction.away_score_prediction if prediction }}</strong>
-                <a href="#" class="btn btn-secondary btn-sm ml-2 edit-prediction">Edit</a>
-            </div>
+                                        {# Проверяем, не начался ли еще матч #}
+                                        {% if dateutil.parser.isoparse(match.fixture.date) > datetime.now(timezone.utc) %}
 
-            <!-- Состояние 2: Форма для ввода/редактирования (может быть скрыта) -->
-            <form action="{{ url_for('tournaments.make_prediction', tournament_id=tournament.id) }}" method="post" class="form-inline justify-content-center prediction-form" {% if prediction and prediction.home_score_prediction is not none %}style="display: none;"{% endif %}>
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                <input type="hidden" name="match_id" value="{{ match.fixture.id }}">
-                <input type="number" name="home_score" class="form-control form-control-sm" style="width: 60px;" value="{{ prediction.home_score_prediction if prediction is not none else '' }}">
-                <span class="mx-2">:</span>
-                <input type="number" name="away_score" class="form-control form-control-sm" style="width: 60px;" value="{{ prediction.away_score_prediction if prediction is not none else '' }}">
-                <button type="submit" class="btn btn-primary btn-sm ml-2">Save</button>
-            </form>
-        </div>
-    {% else %}
-        - : -
-    {% endif %}
-</td>
+                                            {# Если мы в режиме редактирования этого матча #}
+                                            {% if request.args.get('action') == 'edit' and request.args.get('match_id') == (match.fixture.id | string) %}
+                                                <form action="{{ url_for('tournaments.make_prediction', tournament_id=tournament.id) }}" method="post" class="form-inline justify-content-center">
+                                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                                    <input type="hidden" name="match_id" value="{{ match.fixture.id }}">
+                                                    <input type="number" name="home_score_{{ match.fixture.id }}" class="form-control form-control-sm" style="width: 60px;" value="{{ prediction.home_score_prediction if prediction else '' }}">
+                                                    <span class="mx-2">:</span>
+                                                    <input type="number" name="away_score_{{ match.fixture.id }}" class="form-control form-control-sm" style="width: 60px;" value="{{ prediction.away_score_prediction if prediction else '' }}">
+                                                    <button type="submit" class="btn btn-primary btn-sm ml-2">Save</button>
+                                                </form>
+                                            {% else %}
+                                                {# Иначе показываем сохраненный прогноз или кнопку для его создания #}
+                                                {% if prediction %}
+                                                    <strong>{{ prediction.home_score_prediction }} : {{ prediction.away_score_prediction }}</strong>
+                                                    <a href="{{ url_for('tournaments.tournament_details', tournament_id=tournament.id, action='edit', match_id=match.fixture.id) }}" class="btn btn-info btn-sm ml-2">Edit</a>
+                                                {% else %}
+                                                    <a href="{{ url_for('tournaments.tournament_details', tournament_id=tournament.id, action='edit', match_id=match.fixture.id) }}" class="btn btn-primary btn-sm ml-2">Predict</a>
+                                                {% endif %}
+                                            {% endif %}
+
+                                        {% else %}
+                                            {# Если матч уже начался, показываем прогноз без возможности редактирования #}
+                                            {% if prediction and prediction.home_score_prediction is not none %}
+                                                <strong>{{ prediction.home_score_prediction }} : {{ prediction.away_score_prediction }}</strong>
+                                            {% else %}
+                                                - : -
+                                            {% endif %}
+                                        {% endif %}
+                                    {% else %}
+                                        - : -
+                                    {% endif %}
+                                </td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -71,13 +93,13 @@
                 <p>{{ tournament.description }}</p>
                 <hr>
                 <p><strong>Entry Fee:</strong> {{ tournament.entry_fee }}</p>
-                <p><strong>Current Prize Pool:</strong> {{ tournament.entry_fee * tournament.attendees.count() }}</p>
-                <p><strong>Participants:</strong> {{ tournament.attendees.count() }} / {{ tournament.max_participants or 'Unlimited' }}</p>
+                <p><strong>Current Prize Pool:</strong> {{ tournament.entry_fee * num_attendees }}</p>
+                <p><strong>Participants:</strong> {{ num_attendees }} / {{ tournament.max_participants or 'Unlimited' }}</p>
                 <p><strong>Starts:</strong> {{ tournament.start_date.strftime('%Y-%m-%d') if tournament.start_date }}</p>
                 <hr>
                 {% if current_user.is_authenticated %}
                     <form action="{{ url_for('tournaments.join_or_leave_tournament', tournament_id=tournament.id) }}" method="post">
-                        {{ form.hidden_tag() }}
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                         {% if tournament in current_user.tournaments %}
                             <button type="submit" name="action" value="leave" class="btn btn-danger btn-block">Leave Tournament</button>
                         {% else %}
@@ -110,17 +132,4 @@
         </div>
     </div>
 </div>
-{% endblock %}
-{% block scripts %}
-{{ super() }}
-<script>
-$(document).ready(function(){
-    $('.edit-prediction').on('click', function(e){
-        e.preventDefault();
-        var wrapper = $(this).closest('.prediction-wrapper');
-        wrapper.find('.prediction-view').hide();
-        wrapper.find('.prediction-form').show();
-    });
-});
-</script>
 {% endblock %}

@@ -3,12 +3,15 @@ from datetime import datetime
 import dateutil.parser
 from flask import render_template, abort, flash, redirect, url_for, request, jsonify
 from flask_login import login_required, current_user
+from sqlalchemy import func
 from app import db
 from app.tournament import tournament_bp
 from app.tournament.forms import TournamentCreationForm, PredictionForm
 from app.decorators import admin_or_organizer_required
 from app.models import Tournament, BalanceHistory, Prediction, User
 from app.api_client import get_matches_for_league, LEAGUES
+# IMPORTING OUR NEW FUNCTION
+from app.tournament.utils import calculate_points
 
 @tournament_bp.route('/')
 def list_tournaments():
@@ -20,23 +23,24 @@ def tournament_details(tournament_id):
     tournament = Tournament.query.get_or_404(tournament_id)
 
     matches_to_render = []
-    if tournament.matches:
+    if tournament.matches_json:
         try:
-            matches_to_render = json.loads(tournament.matches)
-        except (json.JSONDecodeError, TypeError):
+            matches_to_render = json.loads(tournament.matches_json)
+        except json.JSONDecodeError:
             flash('Could not parse match data for this tournament.', 'warning')
 
+    num_attendees = len(tournament.attendees)
     form = PredictionForm()
 
     user_predictions = {}
     if current_user.is_authenticated:
         predictions = Prediction.query.filter_by(user_id=current_user.id, tournament_id=tournament.id).all()
         for p in predictions:
-            user_predictions[p.match_id] = p
+            user_predictions[str(p.match_id)] = p
 
     leaderboard = db.session.query(
         User.username,
-        db.func.sum(Prediction.points_awarded).label('total_points')
+        func.sum(Prediction.points_awarded).label('total_points')
     ).join(Prediction, User.id == Prediction.user_id)\
      .filter(Prediction.tournament_id == tournament.id)\
      .group_by(User.username)\
@@ -48,55 +52,72 @@ def tournament_details(tournament_id):
                            title=tournament.name,
                            form=form,
                            user_predictions=user_predictions,
-                           leaderboard=leaderboard)
+                           leaderboard=leaderboard,
+                           num_attendees=num_attendees)
 
 @tournament_bp.route('/<int:tournament_id>/predict', methods=['POST'])
 @login_required
 def make_prediction(tournament_id):
     tournament = Tournament.query.get_or_404(tournament_id)
 
-    match_id_str = request.form.get('match_id')
-    if not match_id_str:
-        flash('Match ID was not provided.', 'danger')
+    if tournament not in current_user.tournaments:
+        flash('You must join the tournament before making predictions.', 'danger')
         return redirect(url_for('tournaments.tournament_details', tournament_id=tournament.id))
 
-    match_id = int(match_id_str)
-    home_score = request.form.get('home_score')
-    away_score = request.form.get('away_score')
+    match_id_str = request.form.get('match_id')
+    home_score_str = request.form.get(f'home_score_{match_id_str}')
+    away_score_str = request.form.get(f'away_score_{match_id_str}')
+
+    if not match_id_str or home_score_str is None or away_score_str is None:
+        flash('Invalid prediction data submitted.', 'danger')
+        return redirect(url_for('tournaments.tournament_details', tournament_id=tournament.id))
+
+    try:
+        home_score = int(home_score_str)
+        away_score = int(away_score_str)
+    except (ValueError, TypeError):
+        flash('Scores must be integer numbers.', 'danger')
+        return redirect(url_for('tournaments.tournament_details', tournament_id=tournament.id))
 
     prediction = Prediction.query.filter_by(
         user_id=current_user.id,
         tournament_id=tournament.id,
-        match_id=match_id
+        match_id=match_id_str
     ).first()
+
+    if not tournament.matches_json:
+        flash('Tournament has no match data.', 'danger')
+        return redirect(url_for('tournaments.tournament_details', tournament_id=tournament.id))
+
+    all_matches_info = json.loads(tournament.matches_json)
+    match_info = next((m for m in all_matches_info if str(m['fixture']['id']) == match_id_str), None)
+
+    if not match_info:
+        flash('Could not find match info to create or update prediction.', 'danger')
+        return redirect(url_for('tournaments.tournament_details', tournament_id=tournament.id))
 
     if prediction:
         prediction.home_score_prediction = home_score
         prediction.away_score_prediction = away_score
+        flash('Your prediction has been updated!', 'success')
     else:
-        all_matches_info = json.loads(tournament.matches)
-        match_info = next((m for m in all_matches_info if m['fixture']['id'] == match_id), None)
-
-        if match_info:
-            new_prediction = Prediction(
-                user_id=current_user.id,
-                tournament_id=tournament.id,
-                match_id=match_id,
-                match_date=dateutil.parser.isoparse(match_info['fixture']['date']),
-                home_team_name=match_info['teams']['home']['name'],
-                home_team_logo=match_info['teams']['home']['logo'],
-                away_team_name=match_info['teams']['away']['name'],
-                away_team_logo=match_info['teams']['away']['logo'],
-                home_score_prediction=home_score,
-                away_score_prediction=away_score
-            )
-            db.session.add(new_prediction)
-        else:
-            flash('Could not find match info to create prediction.', 'danger')
+        new_prediction = Prediction(
+            user_id=current_user.id,
+            tournament_id=tournament.id,
+            match_id=match_id_str,
+            match_date=dateutil.parser.isoparse(match_info['fixture']['date']),
+            home_team=match_info['teams']['home']['name'],
+            away_team=match_info['teams']['away']['name'],
+            home_score_prediction=home_score,
+            away_score_prediction=away_score,
+            points_awarded=0
+        )
+        db.session.add(new_prediction)
+        flash('Your prediction has been saved!', 'success')
 
     db.session.commit()
-    flash('Your prediction has been saved!', 'success')
-    return redirect(url_for('tournaments.tournament_details', tournament_id=tournament.id))
+    # Redirecting back to the page with an anchor to the match
+    return redirect(url_for('tournaments.tournament_details', tournament_id=tournament.id, _anchor=f'match-{match_id_str}'))
 
 @tournament_bp.route('/<int:tournament_id>/action', methods=['POST'])
 @login_required
@@ -111,27 +132,37 @@ def join_or_leave_tournament(tournament_id):
             flash('You are already in this tournament.', 'info')
         else:
             current_user.balance -= tournament.entry_fee
-            history_entry = BalanceHistory(user_id=current_user.id, amount=-tournament.entry_fee, description=f'Entry fee for {tournament.name}')
+            history_entry = BalanceHistory(
+                user_id=current_user.id,
+                change_amount=-tournament.entry_fee,
+                new_balance=current_user.balance,
+                description=f'Entry fee for {tournament.name}'
+            )
             db.session.add(history_entry)
             tournament.attendees.append(current_user)
             db.session.commit()
             flash(f'You have successfully joined the tournament: {tournament.name}!', 'success')
 
     elif action == 'leave':
-        if tournament.status != 'open':
+        if tournament.status != 'open' and tournament.status != 'upcoming':
             flash('You cannot leave a tournament that has already started.', 'danger')
         elif tournament not in current_user.tournaments:
             flash('You are not in this tournament.', 'info')
         else:
             current_user.balance += tournament.entry_fee
-            history_entry = BalanceHistory(user_id=current_user.id, amount=tournament.entry_fee, description=f'Refund for leaving {tournament.name}')
+            history_entry = BalanceHistory(
+                user_id=current_user.id,
+                change_amount=tournament.entry_fee,
+                new_balance=current_user.balance,
+                description=f'Refund for leaving {tournament.name}'
+            )
             db.session.add(history_entry)
             tournament.attendees.remove(current_user)
             Prediction.query.filter_by(user_id=current_user.id, tournament_id=tournament.id).delete()
             db.session.commit()
             flash(f'You have left the tournament: {tournament.name}.', 'success')
 
-    return redirect(request.referrer or url_for('tournaments.tournament_details', tournament_id=tournament.id))
+    return redirect(request.referrer or url_for('tournaments.list_tournaments'))
 
 @tournament_bp.route('/create', methods=['GET', 'POST'])
 @login_required
@@ -165,17 +196,20 @@ def select_matches(tournament_id):
             flash('Please select at least one match.', 'warning')
             return redirect(url_for('tournaments.select_matches', tournament_id=tournament.id))
 
-        matches_data = json.loads(matches_data_json)
+        tournament.matches_json = matches_data_json
 
-        match_dates = [dateutil.parser.isoparse(item['fixture']['date']) for item in matches_data]
+        try:
+            matches_data = json.loads(matches_data_json)
+            if matches_data:
+                match_dates = [dateutil.parser.isoparse(item['fixture']['date']) for item in matches_data]
+                tournament.start_date = min(match_dates)
+        except (json.JSONDecodeError, KeyError, ValueError) as e:
+            flash(f'Could not determine tournament start date from match data: {e}', 'warning')
 
-        tournament.matches = matches_data_json
-        tournament.start_date = min(match_dates)
-        tournament.end_date = max(match_dates)
         tournament.status = 'open'
         db.session.commit()
 
-        flash('Tournament has been successfully created!', 'success')
+        flash('Tournament has been successfully created with selected matches!', 'success')
         return redirect(url_for('tournaments.tournament_details', tournament_id=tournament.id))
 
     return render_template('tournament/create_step2.html',
@@ -191,3 +225,69 @@ def get_matches_by_league_id(league_id):
     if matches is None:
         return jsonify({'error': 'Failed to retrieve matches from API'}), 500
     return jsonify(matches)
+
+
+# --- NEW ROUTE FOR TOURNAMENT MANAGEMENT ---
+@tournament_bp.route('/admin/tournament/<int:tournament_id>/manage', methods=['GET', 'POST'])
+@login_required
+@admin_or_organizer_required
+def manage_tournament(tournament_id):
+    tournament = Tournament.query.get_or_404(tournament_id)
+    
+    if not tournament.matches_json:
+        flash('This tournament has no matches to manage.', 'danger')
+        return redirect(url_for('tournament.index_view'))
+
+    matches = json.loads(tournament.matches_json)
+
+    # Getting existing results to pre-fill the form
+    existing_predictions = Prediction.query.filter(
+        Prediction.tournament_id == tournament.id,
+        Prediction.home_score_actual.isnot(None)
+    ).all()
+
+    existing_results = {p.match_id: p for p in existing_predictions}
+
+    if request.method == 'POST':
+        updated_matches_count = 0
+        for match in matches:
+            match_id_str = str(match['fixture']['id'])
+            home_score_str = request.form.get(f'home_score_{match_id_str}')
+            away_score_str = request.form.get(f'away_score_{match_id_str}')
+
+            # Checking if both values were entered
+            if home_score_str and away_score_str:
+                try:
+                    actual_home = int(home_score_str)
+                    actual_away = int(away_score_str)
+
+                    # Finding all predictions for this match within the tournament
+                    predictions_for_match = Prediction.query.filter_by(
+                        tournament_id=tournament.id, 
+                        match_id=match_id_str
+                    ).all()
+
+                    for prediction in predictions_for_match:
+                        prediction.home_score_actual = actual_home
+                        prediction.away_score_actual = actual_away
+                        # Using our function to calculate points
+                        prediction.points_awarded = calculate_points(prediction, actual_home, actual_away)
+                    
+                    updated_matches_count += 1
+
+                except (ValueError, TypeError):
+                    flash(f'Invalid score for match {match_id_str}. Must be numbers.', 'danger')
+                    continue
+        
+        if updated_matches_count > 0:
+            db.session.commit()
+            flash(f'Successfully updated scores and calculated points for {updated_matches_count} matches.', 'success')
+        else:
+            flash('No new scores were entered.', 'warning')
+
+        return redirect(url_for('tournaments.manage_tournament', tournament_id=tournament.id))
+
+    return render_template('admin/manage_tournament.html',
+                           tournament=tournament, 
+                           matches=matches, 
+                           existing_results=existing_results)

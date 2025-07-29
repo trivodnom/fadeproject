@@ -37,6 +37,7 @@
     <div class="col-12 text-center">
         <form id="finish-form" action="{{ url_for('tournaments.select_matches', tournament_id=tournament.id) }}" method="post">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <!-- Снова используем это поле для отправки JSON -->
             <input type="hidden" name="selected_matches_json" id="selected_matches_json">
             <button type="submit" class="btn btn-fill btn-success">Finish and Create Tournament</button>
         </form>
@@ -49,8 +50,9 @@
 {{ super() }}
 <script>
 $(document).ready(function(){
-    var selectedMatches = {};
+    var selectedMatches = {}; // Объект для хранения выбранных матчей
 
+    // Функция для отрисовки списка выбранных матчей
     function renderSelectedMatches() {
         var list = $('#selected-list');
         var container = $('#selected-matches-container');
@@ -63,10 +65,10 @@ $(document).ready(function(){
             $.each(selectedMatches, function(id, match){
                 var listItem = $('<li class="d-flex justify-content-between align-items-center mb-2">');
                 var matchDate = new Date(match.fixture.date);
-                var formattedDate = matchDate.toLocaleString('ru-RU', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                var formattedDate = matchDate.toLocaleString('ru-RU', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
                 listItem.html('<span>' + match.teams.home.name + ' vs ' + match.teams.away.name + '<br><small class="text-muted">' + formattedDate + '</small></span>');
                 
-                var removeBtn = $('<button class="btn btn-danger btn-sm">&times;</button>');
+                var removeBtn = $('<button type="button" class="btn btn-danger btn-sm">&times;</button>');
                 removeBtn.data('match-id', id);
                 listItem.append(removeBtn);
                 list.append(listItem);
@@ -74,6 +76,7 @@ $(document).ready(function(){
         }
     }
 
+    // Загрузка матчей при клике на лигу
     $('#leagues-list').on('click', 'a', function(e){
         e.preventDefault();
         var leagueId = $(this).data('league-id');
@@ -88,12 +91,13 @@ $(document).ready(function(){
                     var row = $('<tr>');
                     var cell = $('<td class="d-flex justify-content-between align-items-center">');
                     var matchDate = new Date(match.fixture.date);
-                    var formattedDate = matchDate.toLocaleString('ru-RU', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                    var formattedDate = matchDate.toLocaleString('ru-RU', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
                     cell.html('<span>' + match.teams.home.name + ' vs ' + match.teams.away.name + '<br><small class="text-muted">' + formattedDate + '</small></span>');
                     
-                    var addButton = $('<button class="btn btn-primary btn-sm">Add</button>');
+                    var addButton = $('<button type="button" class="btn btn-primary btn-sm">Add</button>');
                     addButton.data('match-info', match);
                     
+                    // Если матч уже выбран, делаем кнопку неактивной
                     if(selectedMatches[match.fixture.id]){
                         addButton.prop('disabled', true).text('Added');
                     }
@@ -111,6 +115,7 @@ $(document).ready(function(){
         });
     });
 
+    // Добавление матча в список выбранных
     $('#matches-container').on('click', '.btn-primary', function() {
         var matchInfo = $(this).data('match-info');
         selectedMatches[matchInfo.fixture.id] = matchInfo;
@@ -118,15 +123,18 @@ $(document).ready(function(){
         renderSelectedMatches();
     });
 
+    // Удаление матча из списка выбранных
     $('#selected-matches-container').on('click', '.btn-danger', function() {
         var matchId = $(this).data('match-id');
         delete selectedMatches[matchId];
         renderSelectedMatches();
+        // Снова делаем кнопку "Add" активной в списке доступных матчей
         $('#matches-container button').filter(function() {
             return $(this).data('match-info') && $(this).data('match-info').fixture.id == matchId;
         }).prop('disabled', false).text('Add');
     });
     
+    // Перед отправкой формы сохраняем JSON в скрытое поле
     $('#finish-form').on('submit', function(){
         $('#selected_matches_json').val(JSON.stringify(Object.values(selectedMatches)));
     });
