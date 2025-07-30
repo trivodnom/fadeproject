@@ -15,6 +15,8 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(128))
     role = db.Column(db.String(10), default='user')
     balance = db.Column(db.Float, default=0.0)
+    avatar = db.Column(db.String(120), nullable=True, default='default.jpg')
+
 
     # ЯВНО УКАЗЫВАЕМ СВЯЗЬ
     tournaments = db.relationship('Tournament', secondary=participants, back_populates='attendees')
@@ -40,6 +42,7 @@ class Tournament(db.Model):
     description = db.Column(db.Text, nullable=True)
     entry_fee = db.Column(db.Float, nullable=False, default=0.0)
     start_date = db.Column(db.DateTime, index=True, default=datetime.utcnow)
+    end_date = db.Column(db.DateTime, index=True) # <-- ДОБАВИТЬ ЭТУ СТРОКУ
     status = db.Column(db.String(20), default='upcoming') # upcoming, active, finished, cancelled
     max_participants = db.Column(db.Integer, nullable=True)
     prize_places = db.Column(db.Integer, default=1)

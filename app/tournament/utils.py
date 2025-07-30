@@ -34,3 +34,46 @@ def calculate_points(prediction, actual_home, actual_away):
         return 1
 
     return 0
+
+def calculate_prize_distribution(tournament, num_attendees):
+    """Рассчитывает распределение призов по сложной логике."""
+    entry_fee = tournament.entry_fee
+    prize_places = tournament.prize_places
+
+    if num_attendees == 0 or entry_fee == 0:
+        return ["Prize pool is 0."]
+
+    total_pool = entry_fee * num_attendees
+    net_prize_pool = total_pool * 0.90
+
+    prizes = {}
+
+    if prize_places == 1:
+        prizes[1] = net_prize_pool
+
+    elif prize_places == 2:
+        if num_attendees <= 2:
+            prizes[1] = net_prize_pool
+        else: # num_attendees >= 3
+            prizes[2] = entry_fee
+            prizes[1] = net_prize_pool - entry_fee
+
+    elif prize_places == 3:
+        if num_attendees <= 2:
+             prizes[1] = net_prize_pool
+        elif num_attendees == 3:
+            prizes[2] = entry_fee
+            prizes[1] = net_prize_pool - entry_fee
+        elif num_attendees == 4:
+            prizes[3] = entry_fee
+            prizes[2] = entry_fee
+            prizes[1] = net_prize_pool - (2 * entry_fee)
+        else: # num_attendees >= 5
+            prizes[3] = entry_fee
+            remainder = net_prize_pool - entry_fee
+            prizes[1] = remainder * 0.65
+            prizes[2] = remainder * 0.35
+
+    # Форматируем для вывода
+    prize_list = [f"{k}-е место: {v:.2f}" for k, v in sorted(prizes.items())]
+    return prize_list if prize_list else ["Distribution not defined for this scenario."]

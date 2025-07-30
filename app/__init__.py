@@ -9,7 +9,6 @@ from flask_wtf import FlaskForm
 from wtforms import StringField, SelectField, FloatField, TextAreaField, IntegerField
 from sqlalchemy.orm.attributes import get_history
 from flask_wtf.csrf import CSRFProtect
-# IMPORTING MARKUPSAFE FOR HTML GENERATION IN THE ADMIN PANEL
 from markupsafe import Markup
 
 db = SQLAlchemy()
@@ -27,23 +26,50 @@ class MyModelView(ModelView):
         return redirect(url_for('auth.login', next=request.url))
 
 class UserAdminView(MyModelView):
+    # Убираем form = AdminUserEditForm отсюда
     form_columns = ('username', 'email', 'role', 'balance')
     column_list = ('username', 'email', 'role', 'balance')
 
+    # Переопределяем метод, чтобы задать форму динамически
+    def edit_form(self, obj=None):
+        from app.user.forms import AdminUserEditForm # <-- Импортируем здесь!
+        return AdminUserEditForm(obj=obj)
+
+
 class TournamentAdminView(MyModelView):
-    # ADDING A COLUMN FOR THE LINK
     column_list = ('name', 'entry_fee', 'start_date', 'status', 'manage_link')
     form_columns = ('name', 'description', 'entry_fee', 'status', 'max_participants', 'prize_places')
     
-    # Function to generate the HTML link
     def _format_manage_link(view, context, model, name):
         manage_url = url_for('tournaments.manage_tournament', tournament_id=model.id)
         return Markup(f'<a href="{manage_url}" class="btn btn-primary">Manage Scores</a>')
 
-    # Binding our function to the column
     column_formatters = {
         'manage_link': _format_manage_link
     }
+
+    def on_model_delete(self, model):
+        from app.models import BalanceHistory 
+        try:
+            for user in model.attendees:
+                user.balance += model.entry_fee
+                history_entry = BalanceHistory(
+                    user_id=user.id,
+                    change_amount=model.entry_fee,
+                    new_balance=user.balance,
+                    description=f"Refund for cancelled/deleted tournament: {model.name}"
+                )
+                db.session.add(history_entry)
+            
+            flash(f"Refunds have been processed for all {len(model.attendees)} participants of the deleted tournament '{model.name}'.", 'success')
+
+        except Exception as e:
+            if not self.handle_view_exception(e):
+                flash(f'Failed to process refunds: {e}', 'error')
+            db.session.rollback()
+            return False
+        
+        return super(TournamentAdminView, self).on_model_delete(model)
 
 class PredictionAdminView(MyModelView):
     can_edit = True
@@ -81,7 +107,6 @@ def create_app(config_class=Config):
     from app.tournament import tournament_bp
     app.register_blueprint(tournament_bp, url_prefix='/tournaments')
 
-    # TournamentAdminView now has our custom column
     admin.add_view(TournamentAdminView(Tournament, db.session, name='Tournaments'))
     admin.add_view(UserAdminView(User, db.session))
     admin.add_view(PredictionAdminView(Prediction, db.session))

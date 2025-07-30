@@ -11,7 +11,8 @@ from app.decorators import admin_or_organizer_required
 from app.models import Tournament, BalanceHistory, Prediction, User
 from app.api_client import get_matches_for_league, LEAGUES
 # IMPORTING OUR NEW FUNCTION
-from app.tournament.utils import calculate_points
+from app.tournament.utils import calculate_points, calculate_prize_distribution
+
 
 @tournament_bp.route('/')
 def list_tournaments():
@@ -38,13 +39,17 @@ def tournament_details(tournament_id):
         for p in predictions:
             user_predictions[str(p.match_id)] = p
 
+    # ИСПРАВЛЕНИЕ ОШИБКИ: SQLAlchemy требовал явного указания, что выбирать.
     leaderboard = db.session.query(
         User.username,
         func.sum(Prediction.points_awarded).label('total_points')
-    ).join(Prediction, User.id == Prediction.user_id)\
-     .filter(Prediction.tournament_id == tournament.id)\
+    ).select_from(Prediction).join(User, Prediction.user_id == User.id).filter(Prediction.tournament_id == tournament.id)\
      .group_by(User.username)\
      .order_by(db.desc('total_points')).all()
+
+    # Используем новую функцию
+    prize_distribution = calculate_prize_distribution(tournament, num_attendees)
+    platform_fee = (num_attendees * tournament.entry_fee) * 0.10
 
     return render_template('tournament/details.html',
                            tournament=tournament,
@@ -53,7 +58,9 @@ def tournament_details(tournament_id):
                            form=form,
                            user_predictions=user_predictions,
                            leaderboard=leaderboard,
-                           num_attendees=num_attendees)
+                           num_attendees=num_attendees,
+                           platform_fee=platform_fee, # <-- Новая переменная
+                           prize_distribution=prize_distribution)
 
 @tournament_bp.route('/<int:tournament_id>/predict', methods=['POST'])
 @login_required
@@ -202,9 +209,11 @@ def select_matches(tournament_id):
             matches_data = json.loads(matches_data_json)
             if matches_data:
                 match_dates = [dateutil.parser.isoparse(item['fixture']['date']) for item in matches_data]
+                # СОХРАНЯЕМ ДАТУ НАЧАЛА И КОНЦА
                 tournament.start_date = min(match_dates)
+                tournament.end_date = max(match_dates) # <-- ДОБАВИТЬ ЭТУ СТРОКУ
         except (json.JSONDecodeError, KeyError, ValueError) as e:
-            flash(f'Could not determine tournament start date from match data: {e}', 'warning')
+            flash(f'Could not determine tournament dates from match data: {e}', 'warning')
 
         tournament.status = 'open'
         db.session.commit()
@@ -233,7 +242,7 @@ def get_matches_by_league_id(league_id):
 @admin_or_organizer_required
 def manage_tournament(tournament_id):
     tournament = Tournament.query.get_or_404(tournament_id)
-    
+
     if not tournament.matches_json:
         flash('This tournament has no matches to manage.', 'danger')
         return redirect(url_for('tournament.index_view'))
@@ -263,7 +272,7 @@ def manage_tournament(tournament_id):
 
                     # Finding all predictions for this match within the tournament
                     predictions_for_match = Prediction.query.filter_by(
-                        tournament_id=tournament.id, 
+                        tournament_id=tournament.id,
                         match_id=match_id_str
                     ).all()
 
@@ -272,13 +281,13 @@ def manage_tournament(tournament_id):
                         prediction.away_score_actual = actual_away
                         # Using our function to calculate points
                         prediction.points_awarded = calculate_points(prediction, actual_home, actual_away)
-                    
+
                     updated_matches_count += 1
 
                 except (ValueError, TypeError):
                     flash(f'Invalid score for match {match_id_str}. Must be numbers.', 'danger')
                     continue
-        
+
         if updated_matches_count > 0:
             db.session.commit()
             flash(f'Successfully updated scores and calculated points for {updated_matches_count} matches.', 'success')
@@ -288,6 +297,6 @@ def manage_tournament(tournament_id):
         return redirect(url_for('tournaments.manage_tournament', tournament_id=tournament.id))
 
     return render_template('admin/manage_tournament.html',
-                           tournament=tournament, 
-                           matches=matches, 
+                           tournament=tournament,
+                           matches=matches,
                            existing_results=existing_results)
