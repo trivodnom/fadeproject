@@ -122,11 +122,16 @@ select.form-control option {
   <script src="{{ url_for('static', filename='js/plugins/bootstrap-notify.js') }}"></script>
   <script src="{{ url_for('static', filename='js/black-dashboard.min.js') }}?v=1.0.0"></script>
   <script>
-    window.addEventListener('load', function() {
+    window.addEventListener('DOMContentLoaded', function() {
         var preloader = document.getElementById('preloader');
         if (preloader) {
-            preloader.style.opacity = '0';
-            setTimeout(function() { preloader.style.display = 'none'; }, 500);
+            // Можно добавить небольшую задержку для плавности, но это не обязательно
+            setTimeout(function() {
+                preloader.style.opacity = '0';
+                setTimeout(function() {
+                    preloader.style.display = 'none';
+                }, 500); // Должно совпадать с transition-duration в CSS
+            }, 200); // <-- Небольшая искусственная задержка в 200ms
         }
     });
     $(document).ready(function() {
