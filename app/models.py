@@ -2,6 +2,8 @@ from datetime import datetime
 from app import db, login
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
+from sqlalchemy.sql import func # <-- Добавьте этот импорт вверху файла
+
 
 participants = db.Table('participants',
     db.Column('user_id', db.Integer, db.ForeignKey('user.id'), primary_key=True),
@@ -16,6 +18,8 @@ class User(UserMixin, db.Model):
     role = db.Column(db.String(10), default='user')
     balance = db.Column(db.Float, default=0.0)
     avatar = db.Column(db.String(120), nullable=True, default='default.jpg')
+    # ДОБАВЬТЕ ЭТУ СТРОКУ
+    join_date = db.Column(db.DateTime, server_default=func.now())
 
 
     # ЯВНО УКАЗЫВАЕМ СВЯЗЬ

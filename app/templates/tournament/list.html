@@ -21,6 +21,8 @@ Tournaments
             <div class="card-header">
                 <h5 class="card-title">{{ tournament.name }}</h5>
                 <p class="card-category">Prize Pool: {{ tournament.entry_fee * (tournament.attendees|length) }}</p>
+                {% set status_map = {'open': 'badge-success', 'active': 'badge-primary', 'finished': 'badge-secondary', 'cancelled': 'badge-danger'} %}
+    <span class="badge badge-pill {{ status_map.get(tournament.status, 'badge-light') }} float-right">{{ tournament.status.title() }}</span>
             </div>
             <div class="card-body">
                 <p><strong>Entry Fee:</strong> {{ tournament.entry_fee }}</p>
@@ -32,31 +34,30 @@ Tournaments
                 <p><strong>Prize Places:</strong> {{ tournament.prize_places }}</p>
             </div>
             <div class="card-footer">
-                <a href="{{ url_for('tournaments.tournament_details', tournament_id=tournament.id) }}" class="btn btn-primary btn-sm">Details</a>
-                
-                {% if current_user.is_authenticated %}
-                    <form action="{{ url_for('tournaments.join_or_leave_tournament', tournament_id=tournament.id) }}" method="post" style="display: inline;">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                        {% if tournament in current_user.tournaments %}
-                            <button type="submit" name="action" value="leave" class="btn btn-danger btn-sm">Leave</button>
-                        {% else %}
-                            <button type="submit" name="action" value="join" class="btn btn-success btn-sm">Join</button>
-                        {% endif %}
-                    </form>
+    <a href="{{ url_for('tournaments.tournament_details', tournament_id=tournament.id) }}" class="btn btn-primary btn-sm">Details</a>
+
+    {% if current_user.is_authenticated %}
+        {% if tournament in current_user.tournaments %}
+            <!-- CHANGE HERE -->
+            <button type="button" class="btn btn-outline-success btn-sm" disabled>Joined</button>
+        {% else %}
+            <form action="{{ url_for('tournaments.join_or_leave_tournament', tournament_id=tournament.id) }}" method="post" style="display: inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                {% if tournament.max_participants and (tournament.attendees|length) >= tournament.max_participants %}
+                    <button type="button" class="btn btn-secondary btn-sm" disabled>Full</button>
                 {% else %}
-                     <a href="{{ url_for('auth.login') }}" class="btn btn-info btn-sm">Login to Join</a>
+                    <button type="submit" name="action" value="join" class="btn btn-success btn-sm">Join</button>
                 {% endif %}
-            </div>
+            </form>
+        {% endif %}
+    {% else %}
+         <a href="{{ url_for('auth.login') }}" class="btn btn-info btn-sm">Login to Join</a>
+    {% endif %}
+</div>
         </div>
     </div>
     {% else %}
-    <div class="col-12">
-        <div class="card">
-            <div class="card-body">
-                <p>There are no open tournaments at the moment.</p>
-            </div>
-        </div>
-    </div>
+    <div class="col-12"><div class="card"><div class="card-body"><p>There are no open tournaments at the moment.</p></div></div></div>
     {% endfor %}
 </div>
 {% endblock %}

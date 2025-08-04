@@ -10,8 +10,28 @@
   <link href="https://use.fontawesome.com/releases/v5.0.6/css/all.css" rel="stylesheet">
   <link href="{{ url_for('static', filename='css/nucleo-icons.css') }}" rel="stylesheet" />
   <link href="{{ url_for('static', filename='css/black-dashboard.css') }}?v=1.0.0" rel="stylesheet" />
+  <style>
+    #preloader{position:fixed;left:0;top:0;z-index:99999;width:100%;height:100%;overflow:visible;background:#1e1e2f;display:flex;justify-content:center;align-items:center;transition:opacity .5s ease}@keyframes rotate{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}@keyframes pulse{0%,100%{transform:scale(1);opacity:.7}50%{transform:scale(1.2);opacity:1}}.preloader-container{display:flex;flex-direction:column;align-items:center;gap:16px}.preloader-circle{width:40px;height:40px;border:2px solid rgba(0,242,195,.2);border-top-color:#00f2c3;border-radius:50%;animation:rotate 1.5s linear infinite}.preloader-dots{display:flex;gap:8px}.preloader-dot{width:6px;height:6px;border-radius:50%;background-color:#1f8ef1;animation:pulse 1.2s ease-in-out infinite;opacity:.7}.preloader-dot:nth-child(2){animation-delay:.2s}.preloader-dot:nth-child(3){animation-delay:.4s}
+    select.form-control, select.form-control:focus {
+    background-color: #2b3553; /* Темно-синий фон */
+    color: #ffffff; /* Белый текст */
+    border: 1px solid #32325d;
+}
+
+select.form-control option {
+    background-color: #2b3553;
+    color: #ffffff;
+}
+  </style>
 </head>
 <body class="">
+  <div id="preloader">
+    <div class="preloader-container">
+        <div class="preloader-circle"></div>
+        <div class="preloader-dots"><div class="preloader-dot"></div><div class="preloader-dot"></div><div class="preloader-dot"></div></div>
+    </div>
+  </div>
+
   <div class="wrapper">
     <div class="sidebar">
       <div class="sidebar-wrapper">
@@ -19,18 +39,18 @@
           <a href="{{ url_for('main.index') }}" class="simple-text logo-normal">FadeProject</a>
         </div>
         <ul class="nav">
-            <li class="{{ 'active' if request.endpoint == 'main.index' else '' }}"><a href="{{ url_for('main.index') }}"><i class="tim-icons icon-chart-pie-36"></i><p>Dashboard</p></a></li>
-            <li class="{{ 'active' if request.endpoint.startswith('tournaments.') else '' }}"><a href="{{ url_for('tournaments.list_tournaments') }}"><i class="tim-icons icon-trophy"></i><p>Tournaments</p></a></li>
-            {% if not current_user.is_authenticated %}
+          {% if current_user.is_authenticated and current_user.role == 'admin' %}
+            <li class="{{ 'active' if request.endpoint == 'main.dashboard' else '' }}"><a href="{{ url_for('main.dashboard') }}"><i class="tim-icons icon-chart-pie-36"></i><p>Dashboard</p></a></li>
+            <li><a href="{{ url_for('admin.index') }}"><i class="tim-icons icon-settings-gear-63"></i><p>Admin Panel</p></a></li>
+          {% endif %}
+          <li class="{{ 'active' if request.endpoint.startswith('tournaments.') else '' }}"><a href="{{ url_for('tournaments.list_tournaments') }}"><i class="tim-icons icon-trophy"></i><p>Tournaments</p></a></li>
+          {% if not current_user.is_authenticated %}
             <li><a href="{{ url_for('auth.login') }}"><i class="tim-icons icon-single-02"></i><p>Login</p></a></li>
             <li><a href="{{ url_for('auth.register') }}"><i class="tim-icons icon-badge"></i><p>Register</p></a></li>
-            {% else %}
-              {% if current_user.role == 'admin' %}
-              <li><a href="{{ url_for('admin.index') }}"><i class="tim-icons icon-settings-gear-63"></i><p>Admin Panel</p></a></li>
-              {% endif %}
-              <li class="{{ 'active' if request.endpoint == 'profile.profile' else '' }}"><a href="{{ url_for('profile.profile') }}"><i class="tim-icons icon-single-02"></i><p>Profile</p></a></li>
-              <li><a href="{{ url_for('auth.logout') }}"><i class="tim-icons icon-button-power"></i><p>Logout</p></a></li>
-            {% endif %}
+          {% else %}
+            <li class="{{ 'active' if request.endpoint == 'profile.profile' else '' }}"><a href="{{ url_for('profile.profile') }}"><i class="tim-icons icon-single-02"></i><p>Profile</p></a></li>
+            <li><a href="{{ url_for('auth.logout') }}"><i class="tim-icons icon-button-power"></i><p>Logout</p></a></li>
+          {% endif %}
         </ul>
       </div>
     </div>
@@ -39,11 +59,7 @@
         <div class="container-fluid">
           <div class="navbar-wrapper">
             <div class="navbar-toggle d-inline">
-              <button type="button" class="navbar-toggler">
-                <span class="navbar-toggler-bar bar1"></span>
-                <span class="navbar-toggler-bar bar2"></span>
-                <span class="navbar-toggler-bar bar3"></span>
-              </button>
+              <button type="button" class="navbar-toggler"><span class="navbar-toggler-bar bar1"></span><span class="navbar-toggler-bar bar2"></span><span class="navbar-toggler-bar bar3"></span></button>
             </div>
             <a class="navbar-brand" href="javascript:void(0)">{% block page_title %}{% endblock %}</a>
           </div>
@@ -53,53 +69,86 @@
             <span class="navbar-toggler-bar navbar-kebab"></span>
           </button>
           <div class="collapse navbar-collapse" id="navigation">
-              <ul class="navbar-nav ml-auto">
-                {% if current_user.is_authenticated %}
-                 <li class="nav-item"><a href="#" class="nav-link">Balance: {{ "%.2f"|format(current_user.balance) }}</a></li>
-                 <li class="dropdown nav-item">
-                   <a href="#" class="dropdown-toggle nav-link" data-toggle="dropdown">
-                     <div class="photo">
-                         {% if current_user.avatar %}
-                           <img src="{{ url_for('static', filename='avatars/' + current_user.avatar) }}" alt="Profile Photo">
-                         {% else %}
-                           <img src="{{ url_for('static', filename='avatars/default.jpg') }}" alt="Profile Photo">
-                         {% endif %}
-                     </div>
-                     <b class="caret d-none d-lg-block d-xl-block"></b>
-                     <p class="d-lg-none">{{ current_user.username }}</p>
-                   </a>
-                   <ul class="dropdown-menu dropdown-navbar">
-                     <li class="nav-link"><a href="{{ url_for('profile.profile') }}" class="nav-item dropdown-item">Profile</a></li>
-                     <li class="dropdown-divider"></li>
-                     <li class="nav-link"><a href="{{ url_for('auth.logout') }}" class="nav-item dropdown-item">Log out</a></li>
-                   </ul>
-                 </li>
-                 <li class="separator d-lg-none"></li>
-               {% endif %}
-             </ul>
+            <ul class="navbar-nav ml-auto">
+              {% if current_user.is_authenticated %}
+              <li class="nav-item"><a href="#" class="nav-link">Balance: {{ "%.2f"|format(current_user.balance) }}</a></li>
+              <li class="dropdown nav-item">
+                <a href="#" class="dropdown-toggle nav-link" data-toggle="dropdown">
+                  <div class="photo">
+                    {% if current_user.avatar %}
+                      <img src="{{ url_for('static', filename='avatars/' + current_user.avatar) }}" alt="Profile Photo">
+                    {% else %}
+                      <img src="{{ url_for('static', filename='avatars/default.jpg') }}" alt="Profile Photo">
+                    {% endif %}
+                  </div>
+                  <b class="caret d-none d-lg-block d-xl-block"></b>
+                  <p class="d-lg-none">{{ current_user.username }}</p>
+                </a>
+                <ul class="dropdown-menu dropdown-navbar">
+                  <li class="nav-link"><a href="{{ url_for('profile.profile') }}" class="nav-item dropdown-item">Profile</a></li>
+                  <li class="dropdown-divider"></li>
+                  <li class="nav-link"><a href="{{ url_for('auth.logout') }}" class="nav-item dropdown-item">Log out</a></li>
+                </ul>
+              </li>
+              <li class="separator d-lg-none"></li>
+              {% endif %}
+            </ul>
           </div>
         </div>
       </nav>
-      <div class="content">{% block content %}{% endblock %}</div>
+      <div class="content">
+        {% block content %}{% endblock %}
+      </div>
       <footer class="footer">
         <div class="container-fluid"><div class="copyright">© <script>document.write(new Date().getFullYear())</script> made with <i class="tim-icons icon-heart-2"></i> by Creative Tim for a better web.</div></div>
       </footer>
     </div>
   </div>
+
+  <div class="modal fade" id="noticeModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+      <div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title" id="noticeModalLabel">Notice</h5><button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button></div>
+        <div class="modal-body" id="noticeModalBody"></div>
+        <div class="modal-footer"><button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button></div>
+      </div>
+    </div>
+  </div>
+
   <script src="{{ url_for('static', filename='js/core/jquery.min.js') }}"></script>
   <script src="{{ url_for('static', filename='js/core/popper.min.js') }}"></script>
   <script src="{{ url_for('static', filename='js/core/bootstrap.min.js') }}"></script>
   <script src="{{ url_for('static', filename='js/plugins/perfect-scrollbar.jquery.min.js') }}"></script>
   <script src="{{ url_for('static', filename='js/plugins/bootstrap-notify.js') }}"></script>
   <script src="{{ url_for('static', filename='js/black-dashboard.min.js') }}?v=1.0.0"></script>
-  <!-- ВОЗВРАЩАЕМ СКРИПТ ДЛЯ МОБИЛЬНОГО МЕНЮ -->
   <script>
+    window.addEventListener('load', function() {
+        var preloader = document.getElementById('preloader');
+        if (preloader) {
+            preloader.style.opacity = '0';
+            setTimeout(function() { preloader.style.display = 'none'; }, 500);
+        }
+    });
+    $(document).ready(function() {
+        $('#join-leave-form').on('submit', function(e) {
+            var joinButton = $(this).find('button[value="join"]');
+            if (joinButton.data('cant-join')) {
+                e.preventDefault();
+                var reason = joinButton.data('reason');
+                $('#noticeModalBody').text(reason);
+                $('#noticeModal').modal('show');
+            }
+        });
+    });
+
+    // --- ВОЗВРАЩАЕМ СКРИПТ ДЛЯ БУРГЕРА ---
     $(document).ready(function() {
       var $body = $('body');
-      // Ищем левый бургер, который управляет боковым меню
+      // Нацеливаемся на левый бургер, который управляет боковым меню
       var $sidebar_toggler = $('.navbar-wrapper .navbar-toggler');
 
       $sidebar_toggler.on('click', function() {
+        // Этот класс (nav-open) используется CSS-правилами темы для показа/скрытия меню
         if ($body.hasClass('nav-open')) {
             $body.removeClass('nav-open');
         } else {

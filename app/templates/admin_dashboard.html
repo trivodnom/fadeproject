@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block page_title %}
+Admin Dashboard
+{% endblock %}
+
+{% block content %}
+<!-- ... (весь HTML-код карточек и таблицы остается без изменений) ... -->
+<div class="row">
+    <div class="col-lg-3 col-md-6"><div class="card card-stats"><div class="card-body"><div class="row"><div class="col-5"><div class="info-icon text-center icon-warning"><i class="tim-icons icon-trophy"></i></div></div><div class="col-7"><div class="numbers"><p class="card-category">Total Tournaments</p><h3 class="card-title">{{ stats.total_tournaments }}</h3></div></div></div></div></div></div>
+    <div class="col-lg-3 col-md-6"><div class="card card-stats"><div class="card-body"><div class="row"><div class="col-5"><div class="info-icon text-center icon-primary"><i class="tim-icons icon-controller"></i></div></div><div class="col-7"><div class="numbers"><p class="card-category">Active Tournaments</p><h3 class="card-title">{{ stats.active_tournaments }}</h3></div></div></div></div></div></div>
+    <div class="col-lg-3 col-md-6"><div class="card card-stats"><div class="card-body"><div class="row"><div class="col-5"><div class="info-icon text-center icon-success"><i class="tim-icons icon-single-02"></i></div></div><div class="col-7"><div class="numbers"><p class="card-category">Total Users</p><h3 class="card-title">{{ stats.total_users }}</h3></div></div></div></div></div></div>
+    <div class="col-lg-3 col-md-6"><div class="card card-stats"><div class="card-body"><div class="row"><div class="col-5"><div class="info-icon text-center icon-danger"><i class="tim-icons icon-money-coins"></i></div></div><div class="col-7"><div class="numbers"><p class="card-category">Platform Earnings</p><h3 class="card-title">{{ "%.2f"|format(stats.platform_earnings) }} ₽</h3></div></div></div></div></div></div>
+</div>
+
+<div class="row">
+    <div class="col-lg-6"><div class="card card-chart"><div class="card-header"><h5 class="card-category">User Registrations</h5><h3 class="card-title"><i class="tim-icons icon-single-02 text-primary"></i> Daily New Users</h3></div><div class="card-body"><div class="chart-area" style="height: 300px;"><canvas id="userRegistrationChart"></canvas></div></div></div></div>
+    <div class="col-lg-6"><div class="card card-chart"><div class="card-header"><h5 class="card-category">Platform Earnings</h5><h3 class="card-title"><i class="tim-icons icon-money-coins text-success"></i> Daily Earnings</h3></div><div class="card-body"><div class="chart-area" style="height: 300px;"><canvas id="earningsChart"></canvas></div></div></div></div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header"><div class="row"><div class="col-sm-6"><h4 class="card-title">Recent Tournaments Management</h4></div><div class="col-sm-6"><div class="form-group"><input type="text" id="tournamentSearch" class="form-control" placeholder="Search by Tournament ID..."></div></div></div></div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table tablesorter"><thead class="text-primary"><tr><th>#</th><th>Name</th><th>Status</th><th>Participants</th><th>Prize Pool</th><th class="text-center">Actions</th></tr></thead>
+                        <tbody id="tournamentsTableBody">
+                            {% for t in tournaments %}
+                            <tr>
+                                <td>{{ t.id }}</td>
+                                <td>{{ t.name }}</td>
+                                <td><span class="badge badge-pill {{ 'badge-success' if t.status in ['active', 'open'] else 'badge-secondary' }}">{{ t.status.title() }}</span></td>
+                                <td>
+                                    {% set percentage = ((t.attendees|length) / t.max_participants * 100) if t.max_participants else 0 %}
+                                    <div class="progress-container progress-sm"><span class="progress-value">{{ t.attendees|length }} / {{ t.max_participants or '∞' }}</span><div class="progress"><div class="progress-bar" role="progressbar" style="width: {{ percentage }}%;"></div></div></div>
+                                </td>
+                                <td>{{ "%.2f"|format((t.attendees|length) * t.entry_fee) }} ₽</td>
+                                <td class="text-center">
+                                    <a href="{{ url_for('tournament.edit_view', id=t.id) }}" class="btn btn-link btn-sm btn-icon" title="Edit Settings"><i class="tim-icons icon-settings"></i></a>
+                                    <a href="{{ url_for('tournaments.manage_tournament', tournament_id=t.id) }}" class="btn btn-link btn-sm btn-icon" title="Manage Scores"><i class="tim-icons icon-cloud-upload-94"></i></a>
+                                    <button class="btn btn-link btn-sm btn-icon" title="Fetch API Results (disabled)" disabled><i class="tim-icons icon-refresh-01"></i></button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='js/plugins/chartjs.min.js') }}"></script>
+<script>
+$(document).ready(function() {
+    // --- График регистраций ---
+    var ctx1 = document.getElementById("userRegistrationChart").getContext('2d');
+    var userChart = new Chart(ctx1, {
+        type: 'line',
+        data: {
+            labels: {{ chart_data.user_labels | safe }},
+            // ВОЗВРАЩАЕМ ДАННЫЕ
+            datasets: [{
+                label: "New Users",
+                data: {{ chart_data.user_values | safe }},
+                borderColor: '#1f8ef1',
+                backgroundColor: 'transparent',
+                borderWidth: 2,
+                pointBackgroundColor: '#1f8ef1'
+            }]
+        },
+        options: {
+            scales: {
+                // ИЗМЕНЕНИЕ: Используем старый синтаксис для оси Y
+                yAxes: [{
+                    ticks: {
+                        beginAtZero: true
+                    }
+                }]
+            }
+        }
+    });
+
+    // --- График заработка ---
+    var ctx2 = document.getElementById("earningsChart").getContext('2d');
+    var earningsChart = new Chart(ctx2, {
+        type: 'bar',
+        data: {
+            labels: {{ chart_data.earnings_labels | safe }},
+            // ВОЗВРАЩАЕМ ДАННЫЕ
+            datasets: [{
+                label: "Earnings (₽)",
+                data: {{ chart_data.earnings_values | safe }},
+                backgroundColor: 'rgba(0, 214, 180, 0.6)',
+                borderColor: '#00d6b4',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+
+    // Поиск по таблице
+    $("#tournamentSearch").on("keyup", function() {
+        var value = $(this).val().toLowerCase();
+        $("#tournamentsTableBody tr").filter(function() {
+            $(this).toggle($(this).find('td:eq(0)').text().toLowerCase().indexOf(value) > -1)
+        });
+    });
+});
+</script>
+{% endblock %}

@@ -8,82 +8,88 @@
         <div class="card">
             <div class="card-header"><h4 class="card-title">Matches</h4></div>
             <div class="card-body">
-                {% if matches %}
-                <div class="table-responsive">
-                    <table class="table tablesorter">
-                        <thead class="text-primary">
-                            <tr>
-                                <th>Date</th>
-                                <th>Match</th>
-                                <th class="text-center">Result</th>
-                                <th class="text-center">Your Prediction</th>
-                                <!-- НОВАЯ КОЛОНКА -->
-                                <th class="text-center">Points</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for match in matches %}
-                            <tr id="match-{{ match.fixture.id }}">
-                                <td>{{ match.fixture.date | format_datetime }}</td>
-                                <td>
-                                    <img src="{{ match.teams.home.logo }}" style="width: 24px; height: 24px; vertical-align: middle; margin-right: 5px;">
-                                    {{ match.teams.home.name }} vs {{ match.teams.away.name }}
-                                    <img src="{{ match.teams.away.logo }}" style="width: 24px; height: 24px; vertical-align: middle; margin-left: 5px;">
-                                </td>
-                                <td class="text-center">
-                                    {% set prediction = user_predictions.get(match.fixture.id | string) %}
-                                    {% if prediction and prediction.home_score_actual is not none %}
-                                        <strong>{{ prediction.home_score_actual }} : {{ prediction.away_score_actual }}</strong>
-                                    {% else %}
-                                        - : -
-                                    {% endif %}
-                                </td>
-                                <td class="text-center">
-                                    {% if current_user.is_authenticated and tournament in current_user.tournaments %}
-                                        {% set prediction = user_predictions.get(match.fixture.id | string) %}
-                                        {% if dateutil.parser.isoparse(match.fixture.date) > datetime.now(timezone.utc) %}
-                                            {% if request.args.get('action') == 'edit' and request.args.get('match_id') == (match.fixture.id | string) %}
-                                                <form action="{{ url_for('tournaments.make_prediction', tournament_id=tournament.id) }}" method="post" class="form-inline justify-content-center">
-                                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                                                    <input type="hidden" name="match_id" value="{{ match.fixture.id }}">
-                                                    <input type="number" name="home_score_{{ match.fixture.id }}" class="form-control form-control-sm" style="width: 60px;" value="{{ prediction.home_score_prediction if prediction else '' }}">
-                                                    <span class="mx-2">:</span>
-                                                    <input type="number" name="away_score_{{ match.fixture.id }}" class="form-control form-control-sm" style="width: 60px;" value="{{ prediction.away_score_prediction if prediction else '' }}">
-                                                    <button type="submit" class="btn btn-primary btn-sm ml-2">Save</button>
-                                                </form>
-                                            {% else %}
-                                                {% if prediction %}
-                                                    <strong>{{ prediction.home_score_prediction }} : {{ prediction.away_score_prediction }}</strong>
-                                                    <a href="{{ url_for('tournaments.tournament_details', tournament_id=tournament.id, action='edit', match_id=match.fixture.id, _anchor='match-' ~ match.fixture.id) }}" class="btn btn-info btn-sm ml-2">Edit</a>
-                                                {% else %}
-                                                    <a href="{{ url_for('tournaments.tournament_details', tournament_id=tournament.id, action='edit', match_id=match.fixture.id, _anchor='match-' ~ match.fixture.id) }}" class="btn btn-primary btn-sm ml-2">Predict</a>
-                                                {% endif %}
-                                            {% endif %}
-                                        {% else %}
-                                            {% if prediction and prediction.home_score_prediction is not none %}
-                                                <strong>{{ prediction.home_score_prediction }} : {{ prediction.away_score_prediction }}</strong>
-                                            {% else %}
-                                                - : -
-                                            {% endif %}
-                                        {% endif %}
-                                    {% else %}
-                                        - : -
-                                    {% endif %}
-                                </td>
-                                <!-- ЯЧЕЙКА ДЛЯ ОЧКОВ -->
-                                <td class="text-center">
-                                    {% if prediction and prediction.points_awarded > 0 %}
-                                        <strong style="color: #00f2c3;">+{{ prediction.points_awarded }}</strong>
-                                    {% elif prediction and prediction.home_score_actual is not none %}
-                                        0
-                                    {% else %}
-                                        -
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+                {% if grouped_matches %}
+                <div class="accordion" id="leaguesAccordion">
+                    {% for league_name, rounds in grouped_matches.items() %}
+                    <div class="card bg-dark mb-1">
+                        <div class="card-header" id="heading-{{ loop.index }}">
+                            <h5 class="mb-0">
+                                <button class="btn btn-link text-white" type="button" data-toggle="collapse" data-target="#collapse-{{ loop.index }}" aria-expanded="{{ 'true' if loop.first else 'false' }}">
+                                    {{ league_name }}
+                                </button>
+                            </h5>
+                        </div>
+                        <div id="collapse-{{ loop.index }}" class="collapse {{ 'show' if loop.first }}" data-parent="#leaguesAccordion">
+                            <div class="card-body">
+                                {% for round_name, matches in rounds.items() %}
+                                    <h6 class="mt-3 text-muted">{{ round_name }}</h6>
+                                    <div class="table-responsive">
+                                        <table class="table tablesorter">
+                                            <thead class="text-primary"><tr><th>Date</th><th>Match</th><th class="text-center">Result</th><th class="text-center">Your Prediction</th><th class="text-center">Points</th></tr></thead>
+                                            <tbody>
+                                                {% for match in matches %}
+                                                    <tr id="match-{{ match.fixture.id }}">
+                                                        <td>{{ match.fixture.date | format_datetime }}</td>
+                                                        <td><img src="{{ match.teams.home.logo }}" style="width: 24px; height: 24px; vertical-align: middle; margin-right: 5px;"> {{ match.teams.home.name }} vs {{ match.teams.away.name }} <img src="{{ match.teams.away.logo }}" style="width: 24px; height: 24px; vertical-align: middle; margin-left: 5px;"></td>
+                                                        <td class="text-center">
+                                                            {% set prediction = user_predictions.get(match.fixture.id | string) %}
+                                                            {% if prediction and prediction.home_score_actual is not none %}
+                                                                <strong>{{ prediction.home_score_actual }} : {{ prediction.away_score_actual }}</strong>
+                                                            {% else %}
+                                                                - : -
+                                                            {% endif %}
+                                                        </td>
+                                                        <td class="text-center">
+                                                            {% if current_user.is_authenticated and tournament in current_user.tournaments %}
+                                                                {% set prediction = user_predictions.get(match.fixture.id | string) %}
+                                                                {% if dateutil.parser.isoparse(match.fixture.date) > datetime.now(timezone.utc) %}
+                                                                    {% if request.args.get('action') == 'edit' and request.args.get('match_id') == (match.fixture.id | string) %}
+                                                                        <form action="{{ url_for('tournaments.make_prediction', tournament_id=tournament.id) }}" method="post" class="form-inline justify-content-center">
+                                                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                                                            <input type="hidden" name="match_id" value="{{ match.fixture.id }}">
+                                                                            <input type="number" name="home_score_{{ match.fixture.id }}" class="form-control form-control-sm" style="width: 60px;" value="{{ prediction.home_score_prediction if prediction else '' }}">
+                                                                            <span class="mx-2">:</span>
+                                                                            <input type="number" name="away_score_{{ match.fixture.id }}" class="form-control form-control-sm" style="width: 60px;" value="{{ prediction.away_score_prediction if prediction else '' }}">
+                                                                            <button type="submit" class="btn btn-primary btn-sm ml-2">Save</button>
+                                                                        </form>
+                                                                    {% else %}
+                                                                        {% if prediction %}
+                                                                            <strong>{{ prediction.home_score_prediction }} : {{ prediction.away_score_prediction }}</strong>
+                                                                            <a href="{{ url_for('tournaments.tournament_details', tournament_id=tournament.id, action='edit', match_id=match.fixture.id, _anchor='match-' ~ match.fixture.id) }}" class="btn btn-info btn-sm ml-2">Edit</a>
+                                                                        {% else %}
+                                                                            <a href="{{ url_for('tournaments.tournament_details', tournament_id=tournament.id, action='edit', match_id=match.fixture.id, _anchor='match-' ~ match.fixture.id) }}" class="btn btn-primary btn-sm ml-2">Predict</a>
+                                                                        {% endif %}
+                                                                    {% endif %}
+                                                                {% else %}
+                                                                    {% if prediction and prediction.home_score_prediction is not none %}
+                                                                        <strong>{{ prediction.home_score_prediction }} : {{ prediction.away_score_prediction }}</strong>
+                                                                    {% else %}
+                                                                        - : -
+                                                                    {% endif %}
+                                                                {% endif %}
+                                                            {% else %}
+                                                                - : -
+                                                            {% endif %}
+                                                        </td>
+                                                        <td class="text-center">
+                                                            {% if prediction and prediction.points_awarded > 0 %}
+                                                                <strong style="color: #00f2c3;">+{{ prediction.points_awarded }}</strong>
+                                                            {% elif prediction and prediction.home_score_actual is not none %}
+                                                                0
+                                                            {% else %}
+                                                                -
+                                                            {% endif %}
+                                                        </td>
+                                                    </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
                 </div>
                 {% else %}
                 <p>There are no matches for this tournament.</p>
@@ -95,9 +101,10 @@
         <div class="card">
             <div class="card-header"><h4 class="card-title">{{ tournament.name }}</h4></div>
             <div class="card-body">
+                {% set status_map = {'open': 'badge-success', 'active': 'badge-primary', 'finished': 'badge-secondary', 'cancelled': 'badge-danger'} %}
+    <span class="badge badge-pill {{ status_map.get(tournament.status, 'badge-light') }} float-right">{{ tournament.status.title() }}</span>
                 <p>{{ tournament.description }}</p>
                 <hr>
-                <!-- ОБНОВЛЕННЫЙ ИНФО-БЛОК -->
                 <p><strong>Entry Fee:</strong> {{ tournament.entry_fee }}</p>
                 <p><strong>Prize Places:</strong> {{ tournament.prize_places }}</p>
                 <p><strong>Participants:</strong> {{ num_attendees }} / {{ tournament.max_participants or 'Unlimited' }}</p>
@@ -113,15 +120,36 @@
                 </ul>
                 <hr>
                 {% if current_user.is_authenticated %}
-                    <form action="{{ url_for('tournaments.join_or_leave_tournament', tournament_id=tournament.id) }}" method="post">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                        {% if tournament in current_user.tournaments %}
-                            <button type="submit" name="action" value="leave" class="btn btn-danger btn-block">Leave Tournament</button>
-                        {% else %}
-                            <button type="submit" name="action" value="join" class="btn btn-success btn-block">Join Tournament</button>
-                        {% endif %}
-                    </form>
-                {% endif %}
+    {% if tournament in current_user.tournaments %}
+        <!-- CHANGE HERE -->
+        <button type="button" class="btn btn-outline-success btn-block" disabled>You have joined</button>
+        <form action="{{ url_for('tournaments.join_or_leave_tournament', tournament_id=tournament.id) }}" method="post" class="mt-2">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <button type="submit" name="action" value="leave" class="btn btn-danger btn-block">Leave Tournament</button>
+        </form>
+    {% else %}
+        <form action="{{ url_for('tournaments.join_or_leave_tournament', tournament_id=tournament.id) }}" method="post" id="join-leave-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            {% set can_join_status = True %}
+            {% set reason = '' %}
+            {% if tournament.max_participants and num_attendees >= tournament.max_participants %}
+                {% set can_join_status = False %}
+                {% set reason = 'The tournament is full.' %}
+            {% elif current_user.balance < tournament.entry_fee %}
+                {% set can_join_status = False %}
+                {% set reason = 'You do not have enough funds to join. Required: ' ~ tournament.entry_fee ~ ', you have: ' ~ current_user.balance %}
+            {% endif %}
+
+            <button type="submit" name="action" value="join" class="btn btn-success btn-block"
+                    {% if not can_join_status %}
+                        data-cant-join="true"
+                        data-reason="{{ reason }}"
+                    {% endif %}>
+                Join Tournament
+            </button>
+        </form>
+    {% endif %}
+{% endif %}
             </div>
         </div>
         <div class="card">
@@ -139,9 +167,7 @@
             <div class="card-header"><h4 class="card-title">Leaderboard</h4></div>
             <div class="card-body">
                 <table class="table tablesorter">
-                    <thead class="text-primary">
-                        <tr><th>Rank</th><th>User</th><th>Points</th></tr>
-                    </thead>
+                    <thead class="text-primary"><tr><th>Rank</th><th>User</th><th>Points</th></tr></thead>
                     <tbody>
                         {% for username, points in leaderboard %}
                         <tr>

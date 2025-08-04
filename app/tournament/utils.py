@@ -35,13 +35,14 @@ def calculate_points(prediction, actual_home, actual_away):
 
     return 0
 
-def calculate_prize_distribution(tournament, num_attendees):
-    """Рассчитывает распределение призов по сложной логике."""
+def calculate_prize_distribution(tournament, num_attendees, return_raw=False):
+    """Рассчитывает распределение призов по утвержденной логике."""
     entry_fee = tournament.entry_fee
     prize_places = tournament.prize_places
 
-    if num_attendees == 0 or entry_fee == 0:
-        return ["Prize pool is 0."]
+    if num_attendees == 0 or entry_fee == 0 or prize_places == 0:
+        # Если возвращаем сырые данные, то пустой словарь, иначе - список
+        return {} if return_raw else ["No prizes yet."]
 
     total_pool = entry_fee * num_attendees
     net_prize_pool = total_pool * 0.90
@@ -52,28 +53,40 @@ def calculate_prize_distribution(tournament, num_attendees):
         prizes[1] = net_prize_pool
 
     elif prize_places == 2:
-        if num_attendees <= 2:
+        if num_attendees < 3:
             prizes[1] = net_prize_pool
-        else: # num_attendees >= 3
+        else:
             prizes[2] = entry_fee
-            prizes[1] = net_prize_pool - entry_fee
+            if net_prize_pool > entry_fee:
+                prizes[1] = net_prize_pool - entry_fee
+            else:
+                prizes[1] = 0
 
     elif prize_places == 3:
-        if num_attendees <= 2:
-             prizes[1] = net_prize_pool
-        elif num_attendees == 3:
-            prizes[2] = entry_fee
-            prizes[1] = net_prize_pool - entry_fee
+        if num_attendees < 4:
+            if num_attendees >= 3:
+                prizes[2] = entry_fee
+                if net_prize_pool > entry_fee:
+                    prizes[1] = net_prize_pool - entry_fee
+                else:
+                    prizes[1] = 0
+            else:
+                prizes[1] = net_prize_pool
         elif num_attendees == 4:
             prizes[3] = entry_fee
             prizes[2] = entry_fee
             prizes[1] = net_prize_pool - (2 * entry_fee)
-        else: # num_attendees >= 5
+        else:
             prizes[3] = entry_fee
             remainder = net_prize_pool - entry_fee
             prizes[1] = remainder * 0.65
             prizes[2] = remainder * 0.35
 
-    # Форматируем для вывода
-    prize_list = [f"{k}-е место: {v:.2f}" for k, v in sorted(prizes.items())]
-    return prize_list if prize_list else ["Distribution not defined for this scenario."]
+    if return_raw:
+        return prizes # Возвращаем словарь {1: 500, 2: 300}
+
+    if not prizes:
+        return [f"Distribution not defined for {num_attendees} participants and {prize_places} places."]
+
+    prize_list = [f"{k}-е место: {v:.2f} ₽" for k, v in sorted(prizes.items())]
+    return prize_list

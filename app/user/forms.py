@@ -30,4 +30,9 @@ class AdminUserEditForm(FlaskForm):
     username = StringField('Username', validators=[DataRequired()])
     email = StringField('Email', validators=[DataRequired(), Email()])
     balance = FloatField('Balance')
-    role = SelectField('Role', choices=[('user', 'User'), ('admin', 'Admin')])
+    # ИСПРАВЛЕНИЕ ЗДЕСЬ: Добавляем 'organizer'
+    role = SelectField('Role', choices=[
+        ('user', 'User'),
+        ('admin', 'Admin'),
+        ('organizer', 'Organizer')
+    ])

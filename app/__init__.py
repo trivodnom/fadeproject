@@ -39,7 +39,7 @@ class UserAdminView(MyModelView):
 class TournamentAdminView(MyModelView):
     column_list = ('name', 'entry_fee', 'start_date', 'status', 'manage_link')
     form_columns = ('name', 'description', 'entry_fee', 'status', 'max_participants', 'prize_places')
-    
+
     def _format_manage_link(view, context, model, name):
         manage_url = url_for('tournaments.manage_tournament', tournament_id=model.id)
         return Markup(f'<a href="{manage_url}" class="btn btn-primary">Manage Scores</a>')
@@ -49,7 +49,7 @@ class TournamentAdminView(MyModelView):
     }
 
     def on_model_delete(self, model):
-        from app.models import BalanceHistory 
+        from app.models import BalanceHistory
         try:
             for user in model.attendees:
                 user.balance += model.entry_fee
@@ -60,7 +60,7 @@ class TournamentAdminView(MyModelView):
                     description=f"Refund for cancelled/deleted tournament: {model.name}"
                 )
                 db.session.add(history_entry)
-            
+
             flash(f"Refunds have been processed for all {len(model.attendees)} participants of the deleted tournament '{model.name}'.", 'success')
 
         except Exception as e:
@@ -68,7 +68,7 @@ class TournamentAdminView(MyModelView):
                 flash(f'Failed to process refunds: {e}', 'error')
             db.session.rollback()
             return False
-        
+
         return super(TournamentAdminView, self).on_model_delete(model)
 
 class PredictionAdminView(MyModelView):
@@ -81,6 +81,7 @@ def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
 
+    app.jinja_env.add_extension('jinja2.ext.do')
     db.init_app(app)
     migrate.init_app(app, db)
     login.init_app(app)

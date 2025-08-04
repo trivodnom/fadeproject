@@ -3,84 +3,104 @@
 {% block page_title %}Manage Tournament: {{ tournament.name }}{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-  <div class="row">
-    <div class="col-md-12">
-      <div class="card">
-        <div class="card-header">
-          <h2 class="card-title">Manage Tournament: {{ tournament.name }}</h2>
-          <p class="card-category">Here you can set the final scores for the matches in this tournament. After saving the scores, the points for all participants will be recalculated based on your scoring rules.</p>
-        </div>
-        <div class="card-body">
-          <form method="post">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-            
-            <div class="table-responsive">
-              <table class="table table-striped table-bordered">
-                <thead class="text-primary">
-                  <tr>
-                    <th>Match Date</th>
-                    <th>Match</th>
-                    <th style="width: 150px;">Final Score</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for match in matches %}
-                    {% set match_id_str = match.fixture.id | string %}
-                    <tr>
-                      <td>{{ match.fixture.date | format_datetime }}</td>
-                      <td>
-                        <img src="{{ match.teams.home.logo }}" width="24" height="24" style="vertical-align: middle;"> 
-                        {{ match.teams.home.name }} vs {{ match.teams.away.name }} 
-                        <img src="{{ match.teams.away.logo }}" width="24" height="24" style="vertical-align: middle;">
-                      </td>
-                      <td>
-                        <div class="form-inline">
-                          <input type="number" name="home_score_{{ match_id_str }}" class="form-control" style="width: 60px;" value="{{ existing_results.get(match_id_str).home_score_actual if existing_results.get(match_id_str) is not none else '' }}">
-                          <span class="mx-2">:</span>
-                          <input type="number" name="away_score_{{ match_id_str }}" class="form-control" style="width: 60px;" value="{{ existing_results.get(match_id_str).away_score_actual if existing_results.get(match_id_str) is not none else '' }}">
-                        </div>
-                      </td>
-                      <td>
-                          {% if existing_results.get(match_id_str) %}
-                              <span class="badge badge-success">Scores Saved</span>
-                          {% else %}
-                              <span class="badge badge-warning">Pending</span>
-                          {% endif %}
-                      </td>
-                    </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-            </div>
+  <h2>Manage Tournament: {{ tournament.name }}</h2>
+  <p>Here you can update match scores and change the tournament status. Prizes are distributed ONLY when the status is changed to 'Finished'.</p>
 
-            <hr>
-            <button type="submit" class="btn btn-primary">Save Scores and Recalculate Points</button>
-            <a href="{{ url_for('tournament.index_view') }}" class="btn btn-default">Back to Tournament List</a>
-          </form>
+  <!-- ФОРМА 1: УПРАВЛЕНИЕ СТАТУСОМ -->
+  <div class="card">
+    <div class="card-header"><h5 class="card-title">Tournament Status</h5></div>
+    <div class="card-body">
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <input type="hidden" name="form_name" value="status_form">
+        <div class="row">
+          <div class="col-md-4">
+            <div class="form-group">
+              <label for="statusSelect">Current Status</label>
+                <select class="form-control" id="statusSelect" name="status">
+                <option value="open" {{ 'selected' if tournament.status == 'open' }}>Open</option>
+                <option value="active" {{ 'selected' if tournament.status == 'active' }}>Active</option>
+                <option value="finished" {{ 'selected' if tournament.status == 'finished' }}>Finished</option>
+                <option value="cancelled" {{ 'selected' if tournament.status == 'cancelled' }}>Cancelled</option>
+              </select>
+            </div>
+          </div>
+          <div class="col-md-4 align-self-end">
+            <div class="form-group">
+                <button type="submit" class="btn btn-info">Update Status</button>
+            </div>
+          </div>
         </div>
-      </div>
+      </form>
     </div>
   </div>
 
-  <div class="row">
-      <div class="col-md-12">
-          <div class="card">
-              <div class="card-header">
-                  <h3 class="card-title">Participants ({{ tournament.attendees|length }})</h3>
-              </div>
-              <div class="card-body">
-                  <ul>
-                    {% for user in tournament.attendees %}
-                      <li>{{ user.username }}</li>
-                    {% else %}
-                      <li>No participants yet.</li>
-                    {% endfor %}
-                  </ul>
-              </div>
-          </div>
-      </div>
+  <!-- ФОРМА 2: УПРАВЛЕНИЕ СЧЕТОМ -->
+  <div class="card">
+    <div class="card-header"><h5 class="card-title">Match Scores</h5></div>
+    <div class="card-body">
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <input type="hidden" name="form_name" value="scores_form">
+        <div class="table-responsive">
+          <table class="table table-striped table-bordered">
+            <!-- === НАЧАЛО ВОССТАНОВЛЕННОГО КОДА === -->
+            <thead>
+              <tr>
+                <th>Match Date</th>
+                <th>Match</th>
+                <th style="width: 150px;">Final Score</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for match in matches %}
+                {% set match_id_str = match.fixture.id | string %}
+                <tr>
+                  <td>{{ match.fixture.date | format_datetime }}</td>
+                  <td>
+                    <img src="{{ match.teams.home.logo }}" width="24" height="24"> {{ match.teams.home.name }}
+                    vs
+                    {{ match.teams.away.name }} <img src="{{ match.teams.away.logo }}" width="24" height="24">
+                  </td>
+                  <td>
+                    <div class="form-inline">
+                      <input type="number" name="home_score_{{ match_id_str }}" class="form-control" style="width: 60px;" value="{{ existing_results.get(match_id_str).home_score_actual if existing_results.get(match_id_str) is not none else '' }}">
+                      <span class="mx-2">:</span>
+                      <input type="number" name="away_score_{{ match_id_str }}" class="form-control" style="width: 60px;" value="{{ existing_results.get(match_id_str).away_score_actual if existing_results.get(match_id_str) is not none else '' }}">
+                    </div>
+                  </td>
+                  <td>
+                      {% if existing_results.get(match_id_str) %}
+                          <span class="badge badge-success">Scores Saved</span>
+                      {% else %}
+                          <span class="badge badge-warning">Pending</span>
+                      {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+            <!-- === КОНЕЦ ВОССТАНОВЛЕННОГО КОДА === -->
+          </table>
+        </div>
+        <hr>
+        <button type="submit" class="btn btn-primary">Save Scores and Recalculate Points</button>
+      </form>
+    </div>
   </div>
-</div>
+
+  <a href="{{ url_for('tournament.index_view') }}" class="btn btn-default">Back to Tournament List</a>
+
+  <div class="card mt-4">
+    <div class="card-header"><h5 class="card-title">Participants ({{ tournament.attendees|length }})</h5></div>
+    <div class="card-body">
+        <ul>
+            {% for user in tournament.attendees %}
+            <li>{{ user.username }}</li>
+            {% else %}
+            <li>No participants yet.</li>
+            {% endfor %}
+        </ul>
+    </div>
+  </div>
 {% endblock %}

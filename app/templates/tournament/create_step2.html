@@ -7,12 +7,16 @@
     <div class="col-md-4">
         <div class="card">
             <div class="card-header"><h5 class="card-title">Leagues</h5></div>
-            <div class="list-group list-group-flush" id="leagues-list">
-                {% for league_name, league_id in leagues.items() %}
-                <a href="#" class="list-group-item list-group-item-action" data-league-id="{{ league_id }}">
-                    {{ league_name }}
-                </a>
-                {% endfor %}
+            <div class="card-body">
+                <div class="form-group">
+                    <label for="league-selector">Select a League</label>
+                    <select id="league-selector" class="form-control">
+                        <option selected disabled>Choose here...</option>
+                        {% for league_name, league_id in leagues.items() %}
+                            <option value="{{ league_id }}">{{ league_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
             </div>
         </div>
         <div class="card">
@@ -37,7 +41,6 @@
     <div class="col-12 text-center">
         <form id="finish-form" action="{{ url_for('tournaments.select_matches', tournament_id=tournament.id) }}" method="post">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-            <!-- Снова используем это поле для отправки JSON -->
             <input type="hidden" name="selected_matches_json" id="selected_matches_json">
             <button type="submit" class="btn btn-fill btn-success">Finish and Create Tournament</button>
         </form>
@@ -45,19 +48,16 @@
 </div>
 {% endblock %}
 
-
 {% block scripts %}
 {{ super() }}
 <script>
 $(document).ready(function(){
-    var selectedMatches = {}; // Объект для хранения выбранных матчей
+    var selectedMatches = {};
 
-    // Функция для отрисовки списка выбранных матчей
     function renderSelectedMatches() {
         var list = $('#selected-list');
         var container = $('#selected-matches-container');
         list.empty();
-
         if (Object.keys(selectedMatches).length === 0) {
             container.find('p').show();
         } else {
@@ -66,8 +66,8 @@ $(document).ready(function(){
                 var listItem = $('<li class="d-flex justify-content-between align-items-center mb-2">');
                 var matchDate = new Date(match.fixture.date);
                 var formattedDate = matchDate.toLocaleString('ru-RU', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
-                listItem.html('<span>' + match.teams.home.name + ' vs ' + match.teams.away.name + '<br><small class="text-muted">' + formattedDate + '</small></span>');
-                
+                var leagueInfo = match.league.name + ' - ' + match.league.round;
+                listItem.html('<span>' + match.teams.home.name + ' vs ' + match.teams.away.name + '<br><small class="text-muted">' + leagueInfo + ' | ' + formattedDate + '</small></span>');
                 var removeBtn = $('<button type="button" class="btn btn-danger btn-sm">&times;</button>');
                 removeBtn.data('match-id', id);
                 listItem.append(removeBtn);
@@ -76,37 +76,60 @@ $(document).ready(function(){
         }
     }
 
-    // Загрузка матчей при клике на лигу
-    $('#leagues-list').on('click', 'a', function(e){
-        e.preventDefault();
-        var leagueId = $(this).data('league-id');
+    $('#league-selector').on('change', function(e){
+        var leagueId = $(this).val();
         var matchesContainer = $('#matches-container');
         matchesContainer.html('<p>Loading matches...</p>');
 
         $.getJSON('/tournaments/get_matches/' + leagueId, function(data) {
             matchesContainer.empty();
-            if (data && data.length > 0) {
-                var table = $('<table class="table"><tbody></tbody></table>');
-                $.each(data, function(i, match){
-                    var row = $('<tr>');
-                    var cell = $('<td class="d-flex justify-content-between align-items-center">');
-                    var matchDate = new Date(match.fixture.date);
-                    var formattedDate = matchDate.toLocaleString('ru-RU', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
-                    cell.html('<span>' + match.teams.home.name + ' vs ' + match.teams.away.name + '<br><small class="text-muted">' + formattedDate + '</small></span>');
-                    
-                    var addButton = $('<button type="button" class="btn btn-primary btn-sm">Add</button>');
-                    addButton.data('match-info', match);
-                    
-                    // Если матч уже выбран, делаем кнопку неактивной
-                    if(selectedMatches[match.fixture.id]){
-                        addButton.prop('disabled', true).text('Added');
-                    }
+            if (data && Array.isArray(data) && data.length > 0) {
+                // --- НАЧАЛО ИЗМЕНЕНИЙ ---
+                var accordion = $('<div class="accordion" id="roundsAccordion"></div>');
 
-                    cell.append(addButton);
-                    row.append(cell);
-                    table.find('tbody').append(row);
+                $.each(data, function(index, roundData) {
+                    var roundName = roundData[0];
+                    var matchesInRound = roundData[1];
+                    var roundId = 'round-' + index;
+
+                    var card = $('<div class="card mb-1"></div>');
+                    var cardHeader = $('<div class="card-header">' +
+                        '<h5 class="mb-0">' +
+                        '<button class="btn btn-link btn-block text-left text-white" type="button" data-toggle="collapse" data-target="#' + roundId + '">' +
+                        roundName +
+                        '</button>' +
+                        '</h5>' +
+                        '</div>');
+
+                    var collapse = $('<div id="' + roundId + '" class="collapse ' + (index === 0 ? 'show' : '') + '" data-parent="#roundsAccordion"></div>');
+                    var cardBody = $('<div class="card-body"></div>');
+                    var table = $('<table class="table table-hover"><tbody></tbody></table>');
+
+                    $.each(matchesInRound, function(i, match){
+                        var row = $('<tr>');
+                        var cell = $('<td class="d-flex justify-content-between align-items-center"></td>');
+                        var matchDateUTC = new Date(match.fixture.date);
+                        var matchDateMSK = new Date(matchDateUTC.getTime() + (3 * 60 * 60 * 1000));
+                        var formattedDate = matchDateMSK.toLocaleString('ru-RU', { timeZone: 'Europe/Moscow', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+                        cell.html('<span>' + match.teams.home.name + ' vs ' + match.teams.away.name + '<br><small class="text-muted">' + formattedDate + '</small></span>');
+
+                        var addButton = $('<button type="button" class="btn btn-primary btn-sm">Add</button>');
+                        addButton.data('match-info', match);
+                        if(selectedMatches[match.fixture.id]){
+                            addButton.prop('disabled', true).text('Added');
+                        }
+                        cell.append(addButton);
+                        row.append(cell);
+                        table.find('tbody').append(row);
+                    });
+
+                    cardBody.append(table);
+                    collapse.append(cardBody);
+                    card.append(cardHeader).append(collapse);
+                    accordion.append(card);
                 });
-                matchesContainer.append(table);
+                matchesContainer.append(accordion);
+                // --- КОНЕЦ ИЗМЕНЕНИЙ ---
             } else {
                 matchesContainer.html('<p>No available matches found for this league.</p>');
             }
@@ -115,7 +138,6 @@ $(document).ready(function(){
         });
     });
 
-    // Добавление матча в список выбранных
     $('#matches-container').on('click', '.btn-primary', function() {
         var matchInfo = $(this).data('match-info');
         selectedMatches[matchInfo.fixture.id] = matchInfo;
@@ -123,18 +145,16 @@ $(document).ready(function(){
         renderSelectedMatches();
     });
 
-    // Удаление матча из списка выбранных
     $('#selected-matches-container').on('click', '.btn-danger', function() {
         var matchId = $(this).data('match-id');
         delete selectedMatches[matchId];
         renderSelectedMatches();
-        // Снова делаем кнопку "Add" активной в списке доступных матчей
         $('#matches-container button').filter(function() {
-            return $(this).data('match-info') && $(this).data('match-info').fixture.id == matchId;
+            var matchInfo = $(this).data('match-info');
+            return matchInfo && matchInfo.fixture.id == matchId;
         }).prop('disabled', false).text('Add');
     });
-    
-    // Перед отправкой формы сохраняем JSON в скрытое поле
+
     $('#finish-form').on('submit', function(){
         $('#selected_matches_json').val(JSON.stringify(Object.values(selectedMatches)));
     });
