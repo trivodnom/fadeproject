@@ -1,9 +1,9 @@
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 import dateutil.parser
 from flask import render_template, flash, redirect, url_for, request, jsonify
 from flask_login import login_required, current_user
-from sqlalchemy import func
+from sqlalchemy import func, or_, and_, func, case
 from app import db
 from app.tournament import tournament_bp
 from app.tournament.forms import TournamentCreationForm, PredictionForm
@@ -53,9 +53,72 @@ def distribute_prizes_for_tournament(tournament):
                 db.session.add(history_entry)
                 print(f'Awarded {prize_amount} to {user.username} for {rank} place.')
 
+@tournament_bp.route('/<int:tournament_id>/details')
+@login_required
+def details(tournament_id):
+    tournament = Tournament.query.get_or_404(tournament_id)
+    user_is_participant = current_user in tournament.attendees
+    form = PredictionForm()
+
+    client = APIClient()
+    matches_data = client.get_matches_by_league(tournament.league_id)
+
+    # ----- НАЧАЛО ИЗМЕНЕНИЙ -----
+    first_match_start_time = None
+    if matches_data:
+        # Сортируем матчи по дате, чтобы найти самый ранний
+        sorted_matches = sorted(matches_data, key=lambda x: dateutil.parser.isoparse(x['fixture']['date']))
+        if sorted_matches:
+            # Берем время начала первого матча
+            first_match_date_str = sorted_matches[0]['fixture']['date']
+            first_match_start_time = dateutil.parser.isoparse(first_match_date_str)
+
+    # Получаем текущее время с таймзоной для корректного сравнения
+    now_utc = datetime.now(timezone.utc)
+    # ----- КОНЕЦ ИЗМЕНЕНИЙ -----
+
+    user_predictions = {p.match_id: p for p in current_user.predictions.filter_by(tournament_id=tournament.id).all()}
+
+    leaderboard = db.session.query(
+        User.username,
+        func.sum(Prediction.points_awarded).label('total_points')
+    ).join(Prediction).filter(
+        Prediction.tournament_id == tournament_id
+    ).group_by(User.username).order_by(
+        func.sum(Prediction.points_awarded).desc()
+    ).all()
+
+    return render_template(
+        'tournament/details.html',
+        tournament=tournament,
+        matches=matches_data,
+        user_is_participant=user_is_participant,
+        form=form,
+        user_predictions=user_predictions,
+        leaderboard=leaderboard,
+        # ----- ИЗМЕНЕНИЕ: Передаем переменные в шаблон -----
+        first_match_start_time=first_match_start_time,
+        now_utc=now_utc
+    )
+
 @tournament_bp.route('/')
 def list_tournaments():
-    tournaments = Tournament.query.filter(Tournament.status != 'draft').order_by(Tournament.start_date.desc()).all()
+    # --- НОВАЯ ЛОГИКА СОРТИРОВКИ ---
+
+    # 1. Создаем выражение для сортировки
+    status_order = case(
+        (Tournament.status == 'open', 1),
+        (Tournament.status == 'active', 2),
+        (Tournament.status == 'finished', 3),
+        else_=4
+    ).label("status_order")
+
+    # 2. Применяем сортировку
+    tournaments = Tournament.query\
+        .filter(Tournament.status != 'draft')\
+        .order_by(status_order, Tournament.start_date.desc())\
+        .all()
+
     return render_template('tournament/list.html', tournaments=tournaments, title='Tournaments')
 
 @tournament_bp.route('/<int:tournament_id>')
@@ -79,6 +142,19 @@ def tournament_details(tournament_id):
                 grouped_matches[league_name][round_name].append(match)
         except (json.JSONDecodeError, TypeError):
             flash('Could not parse match data for this tournament.', 'warning')
+
+            # ----- ИЗМЕНЕНИЕ: Упрощенная и более безопасная логика -----
+    can_leave = tournament.status in ['open', 'upcoming']
+    if can_leave and matches_list:
+        try:
+            first_match_start_time = dateutil.parser.isoparse(matches_list[0]['fixture']['date'])
+            if datetime.now(timezone.utc) >= first_match_start_time:
+                can_leave = False
+        except (ValueError, KeyError):
+            # Если дата матча некорректна, на всякий случай запрещаем выход
+            can_leave = False
+    # ----- КОНЕЦ ИЗМЕНЕНИЙ -----
+
 
     num_attendees = len(tournament.attendees)
     form = PredictionForm()
@@ -164,7 +240,28 @@ def join_or_leave_tournament(tournament_id):
             flash(f'You have successfully joined the tournament: {tournament.name}!', 'success')
 
     elif action == 'leave':
+         # ----- НАЧАЛО ИЗМЕНЕНИЙ В ЛОГИКЕ ВЫХОДА -----
+        # Проверяем, есть ли матчи и время их начала
+        first_match_start_time = None
+        if tournament.matches_json:
+            try:
+                matches_list = json.loads(tournament.matches_json)
+                if matches_list:
+                    # Сортируем на всякий случай, если порядок не гарантирован
+                    matches_list.sort(key=lambda x: x['fixture']['date'])
+                    first_match_start_time = dateutil.parser.isoparse(matches_list[0]['fixture']['date'])
+            except (json.JSONDecodeError, TypeError, IndexError):
+                pass # Оставляем first_match_start_time = None, если данные некорректны
+
+        # Проверяем, можно ли покинуть турнир
+        can_leave = True
         if tournament.status not in ['open', 'upcoming']:
+            can_leave = False
+        # Если время первого матча определено, проверяем, не прошло ли оно
+        if first_match_start_time and datetime.now(timezone.utc) >= first_match_start_time:
+            can_leave = False
+
+        if not can_leave:
             flash('You cannot leave a tournament that has already started.', 'danger')
         elif tournament not in current_user.tournaments:
             flash('You are not in this tournament.', 'info')
@@ -176,6 +273,7 @@ def join_or_leave_tournament(tournament_id):
             Prediction.query.filter_by(user_id=current_user.id, tournament_id=tournament.id).delete()
             db.session.commit()
             flash(f'You have left the tournament: {tournament.name}.', 'success')
+        # ----- КОНЕЦ ИЗМЕНЕНИЙ В ЛОГИКЕ ВЫХОДА -----
 
     return redirect(request.referrer or url_for('tournaments.list_tournaments'))
 

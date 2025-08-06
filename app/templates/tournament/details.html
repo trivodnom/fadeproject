@@ -44,14 +44,18 @@
                                                                 {% set prediction = user_predictions.get(match.fixture.id | string) %}
                                                                 {% if dateutil.parser.isoparse(match.fixture.date) > datetime.now(timezone.utc) %}
                                                                     {% if request.args.get('action') == 'edit' and request.args.get('match_id') == (match.fixture.id | string) %}
-                                                                        <form action="{{ url_for('tournaments.make_prediction', tournament_id=tournament.id) }}" method="post" class="form-inline justify-content-center">
-                                                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                                                                            <input type="hidden" name="match_id" value="{{ match.fixture.id }}">
-                                                                            <input type="number" name="home_score_{{ match.fixture.id }}" class="form-control form-control-sm" style="width: 60px;" value="{{ prediction.home_score_prediction if prediction else '' }}">
-                                                                            <span class="mx-2">:</span>
-                                                                            <input type="number" name="away_score_{{ match.fixture.id }}" class="form-control form-control-sm" style="width: 60px;" value="{{ prediction.away_score_prediction if prediction else '' }}">
-                                                                            <button type="submit" class="btn btn-primary btn-sm ml-2">Save</button>
-                                                                        </form>
+                                                                        <!-- ----- НАЧАЛО ИЗМЕНЕНИЙ (Упрощенная логика) ----- -->
+                        <form action="{{ url_for('tournaments.join_or_leave_tournament', tournament_id=tournament.id) }}" method="post" class="mt-2" onsubmit="return confirm('Are you sure you want to leave this tournament? Your entry fee will be refunded.');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                            <button type="submit" name="action" value="leave" class="btn btn-danger btn-block"
+                                    {% if not can_leave %}
+                                        disabled
+                                        title="You can no longer leave this tournament as it has already started."
+                                    {% endif %}>
+                                Leave Tournament
+                            </button>
+                        </form>
+                        <!-- ----- КОНЕЦ ИЗМЕНЕНИЙ ----- -->
                                                                     {% else %}
                                                                         {% if prediction %}
                                                                             <strong>{{ prediction.home_score_prediction }} : {{ prediction.away_score_prediction }}</strong>
@@ -121,33 +125,28 @@
                 <hr>
                 {% if current_user.is_authenticated %}
     {% if tournament in current_user.tournaments %}
-        <!-- CHANGE HERE -->
-        <button type="button" class="btn btn-outline-success btn-block" disabled>You have joined</button>
-        <form action="{{ url_for('tournaments.join_or_leave_tournament', tournament_id=tournament.id) }}" method="post" class="mt-2">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-            <button type="submit" name="action" value="leave" class="btn btn-danger btn-block">Leave Tournament</button>
-        </form>
-    {% else %}
-        <form action="{{ url_for('tournaments.join_or_leave_tournament', tournament_id=tournament.id) }}" method="post" id="join-leave-form">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-            {% set can_join_status = True %}
-            {% set reason = '' %}
-            {% if tournament.max_participants and num_attendees >= tournament.max_participants %}
-                {% set can_join_status = False %}
-                {% set reason = 'The tournament is full.' %}
-            {% elif current_user.balance < tournament.entry_fee %}
-                {% set can_join_status = False %}
-                {% set reason = 'You do not have enough funds to join. Required: ' ~ tournament.entry_fee ~ ', you have: ' ~ current_user.balance %}
-            {% endif %}
+                        <button type="button" class="btn btn-outline-success btn-block" disabled>You have joined</button>
 
-            <button type="submit" name="action" value="join" class="btn btn-success btn-block"
-                    {% if not can_join_status %}
-                        data-cant-join="true"
-                        data-reason="{{ reason }}"
-                    {% endif %}>
-                Join Tournament
-            </button>
-        </form>
+                        <!-- ----- НАЧАЛО ИЗМЕНЕНИЙ ----- -->
+                        {# Определяем, можно ли покинуть турнир. Создаем переменную can_leave #}
+                        {% set can_leave = [True] %}
+                        {% if tournament.status not in ['open', 'upcoming'] %}
+                            {% if can_leave.pop() %}{% endif %}
+                        {% endif %}
+                        {% if first_match_start_time and now_utc >= first_match_start_time %}
+                            {% if can_leave.pop() %}{% endif %}
+                        {% endif %}
+
+                        <form action="{{ url_for('tournaments.join_or_leave_tournament', tournament_id=tournament.id) }}" method="post" class="mt-2" onsubmit="return confirm('Are you sure you want to leave this tournament? Your entry fee will be refunded.');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                            <button type="submit" name="action" value="leave" class="btn btn-danger btn-block"
+                                    {% if not can_leave %}
+                                        disabled
+                                        title="You can no longer leave this tournament as it has already started."
+                                    {% endif %}>
+                                Leave Tournament
+                            </button>
+                        </form>
     {% endif %}
 {% endif %}
             </div>

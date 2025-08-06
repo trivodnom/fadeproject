@@ -5,59 +5,90 @@ Tournaments
 {% endblock %}
 
 {% block content %}
-{% if current_user.is_authenticated and current_user.role in ['admin', 'organizer'] %}
 <div class="row">
-    <div class="col-12 text-right">
-        <a href="{{ url_for('tournaments.create_tournament') }}" class="btn btn-primary">Create New Tournament</a>
+    <div class="col-md-6">
+        {% if current_user.is_authenticated and current_user.role in ['admin', 'organizer'] %}
+            <a href="{{ url_for('tournaments.create_tournament') }}" class="btn btn-primary">Create New Tournament</a>
+        {% endif %}
+    </div>
+    <!-- === НОВЫЙ БЛОК: ПОИСК ПО ID === -->
+    <div class="col-md-6">
+        <div class="form-group">
+            <input type="text" id="tournamentSearch" class="form-control" placeholder="Search by Tournament...">
+        </div>
     </div>
 </div>
 <hr>
-{% endif %}
 
-<div class="row">
+<div class="row" id="tournaments-list-container">
     {% for tournament in tournaments %}
-    <div class="col-lg-4 col-md-6">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="card-title">{{ tournament.name }}</h5>
-                <p class="card-category">Prize Pool: {{ tournament.entry_fee * (tournament.attendees|length) }}</p>
-                {% set status_map = {'open': 'badge-success', 'active': 'badge-primary', 'finished': 'badge-secondary', 'cancelled': 'badge-danger'} %}
-    <span class="badge badge-pill {{ status_map.get(tournament.status, 'badge-light') }} float-right">{{ tournament.status.title() }}</span>
-            </div>
-            <div class="card-body">
+    <!-- Добавляем data-id для поиска -->
+    <div class="col-lg-4 col-md-6 tournament-card" data-id="{{ tournament.id }}">
+    <div class="card">
+        <!-- ИСПРАВЛЕНИЕ ЗДЕСЬ: Добавляем классы для Flexbox -->
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="card-title mb-0">#{{ tournament.id }} - {{ tournament.name }}</h5>
+            {% set status_map = {'open': 'badge-success', 'active': 'badge-primary', 'finished': 'badge-secondary', 'cancelled': 'badge-danger'} %}
+            <span class="badge badge-pill {{ status_map.get(tournament.status, 'badge-light') }}">{{ tournament.status.title() }}</span>
+        </div>
+        <div class="card-body">
                 <p><strong>Entry Fee:</strong> {{ tournament.entry_fee }}</p>
                 <p><strong>Starts:</strong> {{ tournament.start_date.strftime('%d %b %Y') if tournament.start_date }}</p>
-                <!-- ДОБАВЛЕНО ОТОБРАЖЕНИЕ ДАТЫ ОКОНЧАНИЯ -->
                 <p><strong>Ends:</strong> {{ tournament.end_date.strftime('%d %b %Y') if tournament.end_date }}</p>
                 <p><strong>Participants:</strong> {{ tournament.attendees|length }} / {{ tournament.max_participants or 'Unlimited' }}</p>
-                <!-- ДОБАВЛЕНО ОТОБРАЖЕНИЕ ПРИЗОВЫХ МЕСТ -->
                 <p><strong>Prize Places:</strong> {{ tournament.prize_places }}</p>
             </div>
             <div class="card-footer">
-    <a href="{{ url_for('tournaments.tournament_details', tournament_id=tournament.id) }}" class="btn btn-primary btn-sm">Details</a>
-
-    {% if current_user.is_authenticated %}
-        {% if tournament in current_user.tournaments %}
-            <!-- CHANGE HERE -->
-            <button type="button" class="btn btn-outline-success btn-sm" disabled>Joined</button>
-        {% else %}
-            <form action="{{ url_for('tournaments.join_or_leave_tournament', tournament_id=tournament.id) }}" method="post" style="display: inline;">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                {% if tournament.max_participants and (tournament.attendees|length) >= tournament.max_participants %}
-                    <button type="button" class="btn btn-secondary btn-sm" disabled>Full</button>
+                <a href="{{ url_for('tournaments.tournament_details', tournament_id=tournament.id) }}" class="btn btn-primary btn-sm">Details</a>
+                {% if current_user.is_authenticated %}
+                    {% if tournament in current_user.tournaments %}
+                        <button type="button" class="btn btn-outline-success btn-sm" disabled>Joined</button>
+                    {% else %}
+                        <form action="{{ url_for('tournaments.join_or_leave_tournament', tournament_id=tournament.id) }}" method="post" style="display: inline;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                            {% if tournament.max_participants and (tournament.attendees|length) >= tournament.max_participants %}
+                                <button type="button" class="btn btn-secondary btn-sm" disabled>Full</button>
+                            {% else %}
+                                <button type="submit" name="action" value="join" class="btn btn-success btn-sm">Join</button>
+                            {% endif %}
+                        </form>
+                    {% endif %}
                 {% else %}
-                    <button type="submit" name="action" value="join" class="btn btn-success btn-sm">Join</button>
+                     <a href="{{ url_for('auth.login') }}" class="btn btn-info btn-sm">Login to Join</a>
                 {% endif %}
-            </form>
-        {% endif %}
-    {% else %}
-         <a href="{{ url_for('auth.login') }}" class="btn btn-info btn-sm">Login to Join</a>
-    {% endif %}
-</div>
+            </div>
         </div>
     </div>
     {% else %}
-    <div class="col-12"><div class="card"><div class="card-body"><p>There are no open tournaments at the moment.</p></div></div></div>
+    <div class="col-12">
+        <div class="card"><div class="card-body"><p>There are no open tournaments at the moment.</p></div></div>
+    </div>
     {% endfor %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+$(document).ready(function(){
+    $("#tournamentSearch").on("keyup", function() {
+        var value = $(this).val().toLowerCase();
+        
+        $("#tournaments-list-container .tournament-card").filter(function() {
+            // --- НАЧАЛО ИЗМЕНЕНИЙ ---
+            // 1. Получаем текст ID
+            var idText = $(this).data('id').toString().toLowerCase();
+            // 2. Получаем текст заголовка
+            var nameText = $(this).find('.card-title').text().toLowerCase();
+
+            // 3. Показываем, если совпадение есть ИЛИ в ID, ИЛИ в названии
+            var idMatch = idText.indexOf(value) > -1;
+            var nameMatch = nameText.indexOf(value) > -1;
+
+            $(this).toggle(idMatch || nameMatch);
+            // --- КОНЕЦ ИЗМЕНЕНИЙ ---
+        });
+    });
+});
+</script>
 {% endblock %}

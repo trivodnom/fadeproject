@@ -10,6 +10,7 @@ from wtforms import StringField, SelectField, FloatField, TextAreaField, Integer
 from sqlalchemy.orm.attributes import get_history
 from flask_wtf.csrf import CSRFProtect
 from markupsafe import Markup
+from flask_babel import Babel
 
 db = SQLAlchemy()
 migrate = Migrate()
@@ -18,6 +19,7 @@ login.login_view = 'auth.login'
 login.login_message = 'Please log in to access this page.'
 admin = Admin(name='FadeProject Admin', template_mode='bootstrap3')
 csrf = CSRFProtect()
+babel = Babel()
 
 class MyModelView(ModelView):
     def is_accessible(self):
@@ -87,6 +89,7 @@ def create_app(config_class=Config):
     login.init_app(app)
     admin.init_app(app)
     csrf.init_app(app)
+    babel.init_app(app)
 
     from app.models import User, Tournament, Prediction
     from app.util import format_datetime_filter
