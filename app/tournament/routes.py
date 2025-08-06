@@ -1,7 +1,7 @@
 import json
 from datetime import datetime, timezone
 import dateutil.parser
-from flask import render_template, flash, redirect, url_for, request, jsonify
+from flask import render_template, flash, redirect, url_for, request, jsonify, current_app
 from flask_login import login_required, current_user
 from sqlalchemy import func, or_, and_, func, case
 from app import db
@@ -16,42 +16,79 @@ from collections import defaultdict
 
 # --- НОВАЯ ФУНКЦИЯ РАСПРЕДЕЛЕНИЯ ПРИЗОВ ---
 def distribute_prizes_for_tournament(tournament):
-    """Находит победителей и начисляет им призы."""
-    # 1. Проверяем, есть ли вообще участники
+    """
+    Находит победителей, корректно обрабатывает ничьи и начисляет призы.
+    """
     if not tournament.attendees:
-        print(f"Tournament {tournament.id} has no attendees. No prizes to distribute.")
+        current_app.logger.info(f"Tournament {tournament.id}: No attendees, no prizes to distribute.")
         return
 
-    # 2. Получаем итоговую таблицу лидеров
-    leaderboard = db.session.query(User, func.sum(Prediction.points_awarded).label('total_points'))\
-        .join(Prediction).filter(Prediction.tournament_id == tournament.id)\
-        .group_by(User).order_by(db.desc('total_points')).all()
+    leaderboard = db.session.query(
+        User,
+        func.sum(Prediction.points_awarded).label('total_points')
+    ).join(Prediction).filter(
+        Prediction.tournament_id == tournament.id
+    ).group_by(User).order_by(
+        db.desc('total_points')
+    ).all()
 
     if not leaderboard:
-        print(f"Tournament {tournament.id} has participants, but no leaderboard data.")
+        current_app.logger.info(f"Tournament {tournament.id}: No leaderboard data.")
         return
 
-    # 3. Получаем схему распределения призов
-    num_attendees = len(tournament.attendees)
-    # Убедимся, что utils.py импортирован
-    from app.tournament.utils import calculate_prize_distribution
-    prize_distribution_amounts = calculate_prize_distribution(tournament, num_attendees, return_raw=True)
+    scores_to_users = defaultdict(list)
+    for user, points in leaderboard:
+        score = points or 0
+        scores_to_users[score].append(user)
 
-    # 4. Начисляем призы
-    for i, (user, points) in enumerate(leaderboard):
-        rank = i + 1
-        if rank in prize_distribution_amounts:
-            prize_amount = prize_distribution_amounts[rank]
-            if prize_amount > 0:
-                user.balance += prize_amount
-                history_entry = BalanceHistory(
-                    user_id=user.id,
-                    change_amount=prize_amount,
-                    new_balance=user.balance,
-                    description=f'Prize for {rank} place in tournament: {tournament.name}'
-                )
-                db.session.add(history_entry)
-                print(f'Awarded {prize_amount} to {user.username} for {rank} place.')
+    num_attendees = len(tournament.attendees)
+    prize_map = calculate_prize_distribution(tournament, num_attendees, return_raw=True)
+
+    if not prize_map:
+        current_app.logger.warning(f"Tournament {tournament.id}: Prize distribution is not defined for {num_attendees} attendees.")
+        return
+
+    sorted_scores = sorted(scores_to_users.keys(), reverse=True)
+    current_rank = 1
+
+    for score in sorted_scores:
+        winners = scores_to_users[score]
+        num_winners_at_this_rank = len(winners)
+
+        if current_rank > tournament.prize_places:
+            break
+
+        prizes_to_share = []
+        for i in range(num_winners_at_this_rank):
+            place = current_rank + i
+            if place in prize_map:
+                prizes_to_share.append(prize_map[place])
+
+        if not prizes_to_share:
+            current_rank += num_winners_at_this_rank
+            continue
+
+        total_prize_for_group = sum(prizes_to_share)
+        prize_per_winner = total_prize_for_group / num_winners_at_this_rank
+
+        for user in winners:
+            user.balance += prize_per_winner
+            history_entry = BalanceHistory(
+                user_id=user.id,
+                change_amount=prize_per_winner,
+                new_balance=user.balance,
+                description=f'Prize for sharing {current_rank}-{current_rank + num_winners_at_this_rank - 1} place in tournament: {tournament.name}'
+            )
+            db.session.add(history_entry)
+            current_app.logger.info(f"Awarded {prize_per_winner:.2f} to {user.username} for sharing rank {current_rank} in tournament {tournament.id}")
+
+        current_rank += num_winners_at_this_rank
+
+    try:
+        db.session.commit()
+    except Exception as e:
+        current_app.logger.error(f"Failed to commit prize distribution for tournament {tournament.id}: {e}")
+        db.session.rollback()
 
 @tournament_bp.route('/<int:tournament_id>/details')
 @login_required
@@ -372,3 +409,46 @@ def manage_tournament(tournament_id):
         return redirect(url_for('tournaments.manage_tournament', tournament_id=tournament.id))
 
     return render_template('admin/manage_tournament.html', tournament=tournament, matches=matches, existing_results=existing_results)
+
+@tournament_bp.route('/admin/tournament/<int:tournament_id>/redistribute', methods=['POST'])
+@login_required
+@admin_or_organizer_required
+def redistribute_prizes(tournament_id):
+    """
+    Отменяет предыдущее распределение призов и запускает новое.
+    """
+    tournament = Tournament.query.get_or_404(tournament_id)
+    if tournament.status != 'finished':
+        flash('Prizes can only be redistributed for finished tournaments.', 'warning')
+        return redirect(url_for('tournaments.manage_tournament', tournament_id=tournament_id))
+
+    prize_history_entries = BalanceHistory.query.filter(
+        BalanceHistory.description.like(f'%Prize%in tournament: {tournament.name}%'),
+        BalanceHistory.user_id.in_([user.id for user in tournament.attendees])
+    ).all()
+
+    if not prize_history_entries:
+        flash('No previous prize transactions found to reverse.', 'info')
+    else:
+        for entry in prize_history_entries:
+            user = User.query.get(entry.user_id)
+            if user:
+                user.balance -= entry.change_amount
+                current_app.logger.info(f"Reversing prize: -{entry.change_amount} from user {user.username}'s balance.")
+            db.session.delete(entry)
+
+        flash(f'Reversed {len(prize_history_entries)} previous prize transactions.', 'success')
+
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error reversing prizes for tournament {tournament.id}: {e}")
+        flash(f'Error reversing prizes: {e}', 'danger')
+        return redirect(url_for('tournaments.manage_tournament', tournament_id=tournament_id))
+
+    current_app.logger.info(f"Starting new prize distribution for tournament {tournament.id}.")
+    distribute_prizes_for_tournament(tournament)
+
+    flash('Prizes have been successfully redistributed!', 'success')
+    return redirect(url_for('tournaments.manage_tournament', tournament_id=tournament_id))

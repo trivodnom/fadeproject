@@ -45,7 +45,7 @@
                                                                 {% if dateutil.parser.isoparse(match.fixture.date) > datetime.now(timezone.utc) %}
                                                                     <!-- Включен режим редактирования для этого матча? -->
                                                                     {% if request.args.get('action') == 'edit' and request.args.get('match_id') == (match.fixture.id | string) %}
-                                                                        
+
                                                                         <!-- ===== НАЧАЛО ИСПРАВЛЕНИЯ ===== -->
                                                                         <!-- Здесь должна быть форма для ввода счета, а не кнопка "Leave" -->
                                                                         <form action="{{ url_for('tournaments.make_prediction', tournament_id=tournament.id) }}" method="post" class="form-inline justify-content-center">
@@ -130,7 +130,7 @@
                 {% if current_user.is_authenticated %}
                     {% if tournament in current_user.tournaments %}
                         <button type="button" class="btn btn-outline-success btn-block" disabled>You have joined</button>
-                        
+
                         <!-- Этот блок теперь на своем месте и работает правильно -->
                         {% set can_leave = [True] %}
                         {% if tournament.status not in ['open', 'upcoming'] %}
@@ -175,13 +175,29 @@
             </div>
         </div>
         <div class="card">
-            <div class="card-header"><h4 class="card-title">Scoring Rules</h4></div>
+            <div class="card-header"><h4 class="card-title">Prize rules</h4></div>
+            <div class="card-body">
+                <h6>Как делятся призы при ничьей?</h6>
+                <p>Если несколько участников набирают одинаковое количество очков и претендуют на призовые места, происходит следующее:</p>
+                <ol>
+                    <li><strong>Призы суммируются.</strong> Все призовые деньги за места, которые делят игроки, складываются вместе.
+                        <br><em>Пример: Два игрока делят 1-е место. Мы берем приз за 1-е и 2-е места и складываем их.</em>
+                    </li>
+                    <li><strong>Сумма делится поровну.</strong> Получившаяся общая сумма делится поровну между всеми игроками, набравшими одинаковое количество очков.</li>
+                    <li><strong>Следующие места пропускаются.</strong> Следующий по очкам игрок займет место, идущее сразу за последним из "поделивших".
+                        <br><em>Пример: Если двое поделили 1-е место, то следующий игрок в таблице лидеров занимает уже 3-е место.</em>
+                    </li>
+                </ol>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header"><h4 class="card-title">Points rules</h4></div>
             <div class="card-body">
                 <ul>
-                    <li><strong>5 points:</strong> Correctly guessing the exact score.</li>
-                    <li><strong>3 points:</strong> Guessing the correct outcome and goal difference.</li>
-                    <li><strong>2 points:</strong> Guessing the correct outcome.</li>
-                    <li><strong>1 point:</strong> Guessing the number of goals for one of the teams.</li>
+                    <li><strong>5 очков:</strong> За точно угаданный счет.</li>
+                    <li><strong>3 очка:</strong> За угаданный исход матча и разницу мячей.</li>
+                    <li><strong>2 очка:</strong> За угаданный исход матча (победа, поражение или ничья).</li>
+                    <li><strong>1 очко:</strong> За угаданное количество голов одной из команд.</li>
                 </ul>
             </div>
         </div>
