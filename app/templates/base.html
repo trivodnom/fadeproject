@@ -10,7 +10,7 @@
   <link href="https://use.fontawesome.com/releases/v5.0.6/css/all.css" rel="stylesheet">
   <link href="{{ url_for('static', filename='css/nucleo-icons.css') }}" rel="stylesheet" />
   <link href="{{ url_for('static', filename='css/black-dashboard.css') }}?v=1.0.0" rel="stylesheet" />
-  
+
   <!-- ===== НАЧАЛО: СТИЛИ ДЛЯ НОВОГО ПРЕЛОАДЕРА ===== -->
   <style>
     /* Основной контейнер прелоадера */
@@ -23,7 +23,7 @@
       height: 100%;
       overflow: visible;
       /* Фон в цвет вашего сайта для плавного перехода */
-      background: #1e1e2f; 
+      background: #1e1e2f;
       display: flex;
       justify-content: center;
       align-items: center;
@@ -54,7 +54,7 @@
         opacity: 0.7;
       }
     }
-    
+
     /* Стили для иконки */
     .loader-icon {
       background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3e%3cpath fill='%236363F5' d='M5 70.48l19.108-19.108a2.029 2.029 0 0 0 0-2.87L5.058 29.45l7.545-7.546 21.89 21.89a8.685 8.685 0 0 1 0 12.283L12.659 77.912 5 70.48zm90-41.03L75.892 48.559a2.029 2.029 0 0 0 0 2.87l19.05 19.051-7.545 7.546-21.89-21.89a8.685 8.685 0 0 1 0-12.283l21.834-21.834L95 29.45zM29.428 5l19.108 19.108a2.029 2.029 0 0 0 2.87 0l19.052-19.05 7.546 7.545-21.89 21.89a8.685 8.685 0 0 1-12.283 0L21.997 12.659 29.428 5zm41.144 90L51.463 75.892a2.029 2.029 0 0 0-2.87 0l-19.051 19.05-7.546-7.545 21.89-21.89a8.685 8.685 0 0 1 12.283 0l21.834 21.834L70.572 95z'/%3e%3c/svg%3e");
@@ -105,7 +105,7 @@
             <li><a href="{{ url_for('auth.register') }}"><i class="tim-icons icon-badge"></i><p>Register</p></a></li>
           {% else %}
             <!-- ИСПРАВЛЕНИЕ: Заменил profile.profile на user.profile, как мы делали ранее -->
-            <li class="{{ 'active' if request.endpoint == 'user.profile' else '' }}"><a href="{{ url_for('user.profile') }}"><i class="tim-icons icon-single-02"></i><p>Profile</p></a></li>
+            <li class="{{ 'active' if request.endpoint == 'profile.profile' else '' }}"><a href="{{ url_for('profile.profile') }}"><i class="tim-icons icon-single-02"></i><p>Profile</p></a></li>
             <li><a href="{{ url_for('auth.logout') }}"><i class="tim-icons icon-button-power"></i><p>Logout</p></a></li>
           {% endif %}
         </ul>
@@ -131,16 +131,15 @@
               <li class="nav-item"><a href="#" class="nav-link">Balance: {{ "%.2f"|format(current_user.balance) }}</a></li>
               <li class="dropdown nav-item">
                 <a href="#" class="dropdown-toggle nav-link" data-toggle="dropdown">
-                  <div class="photo">
-                    <!-- ИСПРАВЛЕНИЕ: Используем `avatars.url` для получения правильного URL -->
-                    <img src="{{ current_user.avatar or url_for('static', filename='assets/img/default-avatar.png') }}" alt="Profile Photo">
-                  </div>
+                    <div class="photo">
+                        <img src="{{ avatars.url(current_user.avatar) if current_user.avatar else url_for('static', filename='img/default-avatar.png') }}" alt="Profile Photo">
+                    </div>
                   <b class="caret d-none d-lg-block d-xl-block"></b>
                   <p class="d-lg-none">{{ current_user.username }}</p>
                 </a>
                 <ul class="dropdown-menu dropdown-navbar">
                   <!-- ИСПРАВЛЕНИЕ: Заменил profile.profile на user.profile -->
-                  <li class="nav-link"><a href="{{ url_for('user.profile') }}" class="nav-item dropdown-item">Profile</a></li>
+                  <li class="nav-link"><a href="{{ url_for('profile.profile') }}" class="nav-item dropdown-item">Profile</a></li>
                   <li class="dropdown-divider"></li>
                   <li class="nav-link"><a href="{{ url_for('auth.logout') }}" class="nav-item dropdown-item">Log out</a></li>
                 </ul>
@@ -176,7 +175,7 @@
   <script src="{{ url_for('static', filename='js/plugins/perfect-scrollbar.jquery.min.js') }}"></script>
   <script src="{{ url_for('static', filename='js/plugins/bootstrap-notify.js') }}"></script>
   <script src="{{ url_for('static', filename='js/black-dashboard.min.js') }}?v=1.0.0"></script>
-  
+
   <!-- ===== НАЧАЛО: JAVASCRIPT ДЛЯ НОВОГО ПРЕЛОАДЕРА И ДРУГИХ ФУНКЦИЙ ===== -->
   <script>
     // Скрипт для скрытия прелоадера

@@ -46,8 +46,14 @@ Tournaments
                     {% else %}
                         <form action="{{ url_for('tournaments.join_or_leave_tournament', tournament_id=tournament.id) }}" method="post" style="display: inline;">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                            {% if tournament.max_participants and (tournament.attendees|length) >= tournament.max_participants %}
+
+                            {% set is_full = tournament.max_participants and (tournament.attendees|length) >= tournament.max_participants %}
+                            {% set has_funds = current_user.balance >= tournament.entry_fee %}
+
+                            {% if is_full %}
                                 <button type="button" class="btn btn-secondary btn-sm" disabled>Full</button>
+                            {% elif not has_funds %}
+                                <button type="button" class="btn btn-warning btn-sm" disabled title="Not enough funds">Join</button>
                             {% else %}
                                 <button type="submit" name="action" value="join" class="btn btn-success btn-sm">Join</button>
                             {% endif %}
@@ -73,7 +79,7 @@ Tournaments
 $(document).ready(function(){
     $("#tournamentSearch").on("keyup", function() {
         var value = $(this).val().toLowerCase();
-        
+
         $("#tournaments-list-container .tournament-card").filter(function() {
             // --- НАЧАЛО ИЗМЕНЕНИЙ ---
             // 1. Получаем текст ID

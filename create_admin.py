@@ -6,7 +6,7 @@ from app.models import User
 # Создаем экземпляр приложения, чтобы получить доступ к его контексту
 app = create_app()
 
-# with app.app_context() гарантирует, что мы работаем 
+# with app.app_context() гарантирует, что мы работаем
 # в правильном окружении Flask
 with app.app_context():
     print("Checking for existing admin...")
@@ -16,10 +16,10 @@ with app.app_context():
     else:
         print("Creating new admin user...")
         # Создаем пользователя
-        u = User(username='trivodnom', email='trivodnom.a@gmail.com', role='admin', balance=1000.0)
+        u = User(username='admin', email='admin@admin.admin', role='admin', balance=0)
         # Устанавливаем пароль 'admin'
         u.set_password('SArt7062785!')
-        
+
         # Сохраняем в базу данных
         db.session.add(u)
         db.session.commit()

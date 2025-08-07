@@ -11,13 +11,19 @@ from sqlalchemy.orm.attributes import get_history
 from flask_wtf.csrf import CSRFProtect
 from markupsafe import Markup
 from flask_babel import Babel
+from flask_uploads import configure_uploads
+
+# Закомментировано временно, чтобы решить проблему с BuildError
+# from .util import versioned_url_for, format_datetime_filter
+from .util import format_datetime_filter # Оставляем только нужный фильтр
+from .extensions import avatars
 
 db = SQLAlchemy()
 migrate = Migrate()
 login = LoginManager()
 login.login_view = 'auth.login'
 login.login_message = 'Please log in to access this page.'
-admin = Admin(name='FadeProject Admin', template_mode='bootstrap3')
+admin = Admin(name='PROJECTFADE Admin', template_mode='bootstrap3')
 csrf = CSRFProtect()
 babel = Babel()
 
@@ -28,17 +34,16 @@ class MyModelView(ModelView):
         return redirect(url_for('auth.login', next=request.url))
 
 class UserAdminView(MyModelView):
-    # Убираем form = AdminUserEditForm отсюда
     form_columns = ('username', 'email', 'role', 'balance')
     column_list = ('username', 'email', 'role', 'balance')
 
-    # Переопределяем метод, чтобы задать форму динамически
     def edit_form(self, obj=None):
-        from app.user.forms import AdminUserEditForm # <-- Импортируем здесь!
+        # ИЗМЕНЕНИЕ: Путь к формам теперь тоже через 'profile'
+        from app.profile.forms import AdminUserEditForm
         return AdminUserEditForm(obj=obj)
 
 
-class TournamentAdminView(MyModelView):
+class TournamentAdminView(ModelView):
     column_list = ('name', 'entry_fee', 'start_date', 'status', 'manage_link')
     form_columns = ('name', 'description', 'entry_fee', 'status', 'max_participants', 'prize_places')
 
@@ -83,31 +88,45 @@ def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
 
-    app.jinja_env.add_extension('jinja2.ext.do')
     db.init_app(app)
     migrate.init_app(app, db)
     login.init_app(app)
     admin.init_app(app)
     csrf.init_app(app)
     babel.init_app(app)
+    configure_uploads(app, avatars)
 
-    from app.models import User, Tournament, Prediction
-    from app.util import format_datetime_filter
+    @app.context_processor
+    def inject_uploads():
+        """Делает объект `avatars` доступным во всех шаблонах."""
+        return dict(avatars=avatars)
 
     app.jinja_env.filters['format_datetime'] = format_datetime_filter
 
+    from app.models import User, Tournament, Prediction
+
     @app.context_processor
-    def inject_utility_processor():
+    def inject_global_vars():
+        """Делает переменные доступными во всех шаблонах."""
         import dateutil.parser
         from datetime import datetime, timezone
-        return dict(dateutil=dateutil, datetime=datetime, timezone=timezone)
+        # Возвращаем все, что нужно глобально: dateutil и наш объект avatars
+        return dict(
+            dateutil=dateutil,
+            datetime=datetime,
+            timezone=timezone,
+            avatars=avatars
+        )
 
     from app.routes import main_bp
     app.register_blueprint(main_bp)
     from app.auth import auth_bp
     app.register_blueprint(auth_bp, url_prefix='/auth')
-    from app.user import user_bp
-    app.register_blueprint(user_bp, url_prefix='/user')
+
+    # ----- ИЗМЕНЕНИЕ ЗДЕСЬ -----
+    from app.profile import profile_bp # <-- Правильный импорт
+    app.register_blueprint(profile_bp, url_prefix='/profile') # <-- Правильная регистрация
+
     from app.tournament import tournament_bp
     app.register_blueprint(tournament_bp, url_prefix='/tournaments')
 

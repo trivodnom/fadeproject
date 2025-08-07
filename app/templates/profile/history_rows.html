@@ -1,0 +1,10 @@
+{% for item in history %}
+<tr>
+    <td>{{ item.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+    <td>{{ item.description }}</td>
+    <!-- ИЗМЕНЕНИЕ: Добавляем !important, чтобы переопределить стили темы -->
+    <td style="color: {{ '#00f2c3' if item.change_amount > 0 else '#fd5d93' }} !important;">
+        {{ "{:+.2f}".format(item.change_amount) }}
+    </td>
+</tr>
+{% endfor %}
