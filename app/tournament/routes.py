@@ -96,13 +96,7 @@ def details(tournament_id):
     tournament = Tournament.query.get_or_404(tournament_id)
     user_is_participant = current_user in tournament.attendees
     form = PredictionForm()
-
-    # This part seems to be for a different implementation, we will use the main tournament_details
-    # For now, keeping the logic simple as it was in the provided file.
-    # client = APIClient()
-    # matches_data = client.get_matches_by_league(tournament.league_id)
     matches_data = json.loads(tournament.matches_json) if tournament.matches_json else []
-
 
     first_match_start_time = None
     if matches_data:
@@ -112,9 +106,7 @@ def details(tournament_id):
             first_match_start_time = dateutil.parser.isoparse(first_match_date_str)
 
     now_utc = datetime.now(timezone.utc)
-
     user_predictions = {p.match_id: p for p in current_user.predictions.filter_by(tournament_id=tournament.id).all()}
-
     leaderboard = db.session.query(
         User.username,
         func.sum(Prediction.points_awarded).label('total_points')
@@ -136,18 +128,64 @@ def details(tournament_id):
         now_utc=now_utc
     )
 
+# ===== НАЧАЛО ИЗМЕНЕНИЙ: ЛОГИКА ФИЛЬТРАЦИИ =====
 @tournament_bp.route('/')
 def list_tournaments():
+    query = Tournament.query.filter(Tournament.status != 'draft')
+
+    # Получаем параметры фильтра из запроса
+    start_date_str = request.args.get('start_date')
+    end_date_str = request.args.get('end_date')
+    selected_sports = request.args.getlist('sport') # getlist для нескольких значений
+    prize_places_str = request.args.get('prize_places')
+
+    # Применяем фильтры к запросу
+    if start_date_str:
+        try:
+            start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
+            query = query.filter(Tournament.start_date >= start_date)
+        except ValueError:
+            flash('Invalid start date format. Please use YYYY-MM-DD.', 'danger')
+    
+    if end_date_str:
+        try:
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
+            query = query.filter(Tournament.end_date <= end_date)
+        except ValueError:
+            flash('Invalid end date format. Please use YYYY-MM-DD.', 'danger')
+
+    if selected_sports:
+        query = query.filter(Tournament.sport.in_(selected_sports))
+
+    if prize_places_str:
+        try:
+            prize_places = int(prize_places_str)
+            if prize_places > 0:
+                query = query.filter(Tournament.prize_places == prize_places)
+        except ValueError:
+            flash('Prize places must be a number.', 'danger')
+
+    # Сортировка
     status_order = case(
         (Tournament.status == 'open', 1),
         (Tournament.status == 'active', 2),
         (Tournament.status == 'finished', 3),
         else_=4
     ).label("status_order")
+    
+    tournaments = query.order_by(status_order, Tournament.start_date.desc()).all()
 
-    tournaments = Tournament.query.filter(Tournament.status != 'draft').order_by(status_order, Tournament.start_date.desc()).all()
+    # Получаем все уникальные виды спорта из БД для формы фильтра
+    available_sports = [s[0] for s in db.session.query(Tournament.sport).distinct().all()]
 
-    return render_template('tournament/list.html', tournaments=tournaments, title='Tournaments')
+    return render_template(
+        'tournament/list.html', 
+        tournaments=tournaments, 
+        title='Tournaments',
+        available_sports=available_sports,
+        filter_values=request.args # Передаем текущие значения фильтра обратно в шаблон
+    )
+# ===== КОНЕЦ ИЗМЕНЕНИЙ =====
 
 @tournament_bp.route('/<int:tournament_id>')
 def tournament_details(tournament_id):

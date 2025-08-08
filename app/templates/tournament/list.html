@@ -5,15 +5,77 @@ Tournaments
 {% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-md-6">
+<!-- ==== НАЧАЛО ИЗМЕНЕНИЙ: УЛУЧШЕНА АДАПТИВНОСТЬ ==== -->
+<div class="row align-items-center">
+    <div class="col-12 col-md-4 mb-3 mb-md-0">
         {% if current_user.is_authenticated and current_user.role in ['admin', 'organizer'] %}
             <a href="{{ url_for('tournaments.create_tournament') }}" class="btn btn-primary">Create New Tournament</a>
         {% endif %}
     </div>
-    <div class="col-md-6">
-        <div class="form-group">
-            <input type="text" id="tournamentSearch" class="form-control" placeholder="Search by Tournament...">
+    <div class="col-12 col-md-5 mb-3 mb-md-0">
+        <div class="form-group mb-0">
+            <input type="text" id="tournamentSearch" class="form-control" placeholder="Search by name or ID...">
+        </div>
+    </div>
+    <div class="col-12 col-md-3">
+        <button class="btn btn-outline-info w-100" id="toggle-filters-btn">
+            <i class="tim-icons icon-zoom-split"></i> Filters
+        </button>
+    </div>
+</div>
+<!-- ==== КОНЕЦ ИЗМЕНЕНИЙ ==== -->
+
+
+<!-- ==== КОНТЕЙНЕР С ФИЛЬТРАМИ (скрыт по умолчанию) ==== -->
+<div class="row mt-3" id="filters-container" style="display: none;">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <form method="GET" action="{{ url_for('tournaments.list_tournaments') }}">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="start_date">Starts After</label>
+                                <input type="date" name="start_date" id="start_date" class="form-control" value="{{ filter_values.get('start_date', '') }}">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="end_date">Ends Before</label>
+                                <input type="date" name="end_date" id="end_date" class="form-control" value="{{ filter_values.get('end_date', '') }}">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="prize_places">Prize Places</label>
+                                <input type="number" name="prize_places" id="prize_places" class="form-control" placeholder="e.g., 3" value="{{ filter_values.get('prize_places', '') }}">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="form-group">
+                                <label>Sports</label>
+                                <div>
+                                    {% for sport in available_sports %}
+                                    <div class="form-check form-check-inline">
+                                        <label class="form-check-label">
+                                            <input class="form-check-input" type="checkbox" name="sport" value="{{ sport }}" {{ 'checked' if sport in filter_values.getlist('sport') }}>
+                                            {{ sport | title }}
+                                            <span class="form-check-sign"><span class="check"></span></span>
+                                        </label>
+                                    </div>
+                                    {% else %}
+                                    <p class="text-muted">No sports available to filter by.</p>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Apply Filters</button>
+                    <a href="{{ url_for('tournaments.list_tournaments') }}" class="btn btn-secondary">Reset</a>
+                </form>
+            </div>
         </div>
     </div>
 </div>
@@ -30,7 +92,6 @@ Tournaments
         </div>
         <div class="card-body">
                 <p><strong>Entry Fee:</strong> {{ tournament.entry_fee }}</p>
-                <!-- НОВАЯ СТРОКА ДЛЯ ОТОБРАЖЕНИЯ ИКОНКИ СПОРТА -->
                 <p>
                     <strong>Sport:</strong>
                     <img src="{{ url_for('static', filename='img/icons/' ~ tournament.sport ~ '.svg') }}"
@@ -72,7 +133,7 @@ Tournaments
     </div>
     {% else %}
     <div class="col-12">
-        <div class="card"><div class="card-body"><p>There are no open tournaments at the moment.</p></div></div>
+        <div class="card"><div class="card-body"><p>No tournaments found for the selected filters.</p></div></div>
     </div>
     {% endfor %}
 </div>
@@ -82,9 +143,9 @@ Tournaments
 {{ super() }}
 <script>
 $(document).ready(function(){
+    // Скрипт для поиска
     $("#tournamentSearch").on("keyup", function() {
         var value = $(this).val().toLowerCase();
-
         $("#tournaments-list-container .tournament-card").filter(function() {
             var idText = $(this).data('id').toString().toLowerCase();
             var nameText = $(this).find('.card-title').text().toLowerCase();
@@ -92,6 +153,11 @@ $(document).ready(function(){
             var nameMatch = nameText.indexOf(value) > -1;
             $(this).toggle(idMatch || nameMatch);
         });
+    });
+
+    // Скрипт для показа/скрытия панели фильтров
+    $('#toggle-filters-btn').on('click', function() {
+        $('#filters-container').slideToggle();
     });
 });
 </script>
