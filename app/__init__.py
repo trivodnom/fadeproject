@@ -1,3 +1,11 @@
+# HACK: Fix for unmaintained 'Flask-Uploads' library
+# It expects 'secure_filename' and 'FileStorage' in 'werkzeug' but they were moved.
+import werkzeug
+import werkzeug.utils
+import werkzeug.datastructures
+werkzeug.secure_filename = werkzeug.utils.secure_filename
+werkzeug.FileStorage = werkzeug.datastructures.FileStorage
+
 from flask import Flask, redirect, url_for, request, flash
 from config import Config
 from flask_sqlalchemy import SQLAlchemy

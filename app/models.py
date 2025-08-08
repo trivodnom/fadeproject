@@ -53,6 +53,7 @@ class Tournament(db.Model):
     manual_results = db.Column(db.Boolean, default=False)
     league_id = db.Column(db.Integer, nullable=True) # <-- Это поле можно удалить или оставить, оно больше не главное
     matches_json = db.Column(db.Text, nullable=True)
+    sport = db.Column(db.String(50), nullable=False, default='football')
 
     # ЯВНО УКАЗЫВАЕМ ОБРАТНУЮ СВЯЗЬ
     attendees = db.relationship('User', secondary=participants, back_populates='tournaments')

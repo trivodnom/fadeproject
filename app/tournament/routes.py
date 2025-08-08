@@ -97,22 +97,21 @@ def details(tournament_id):
     user_is_participant = current_user in tournament.attendees
     form = PredictionForm()
 
-    client = APIClient()
-    matches_data = client.get_matches_by_league(tournament.league_id)
+    # This part seems to be for a different implementation, we will use the main tournament_details
+    # For now, keeping the logic simple as it was in the provided file.
+    # client = APIClient()
+    # matches_data = client.get_matches_by_league(tournament.league_id)
+    matches_data = json.loads(tournament.matches_json) if tournament.matches_json else []
 
-    # ----- НАЧАЛО ИЗМЕНЕНИЙ -----
+
     first_match_start_time = None
     if matches_data:
-        # Сортируем матчи по дате, чтобы найти самый ранний
         sorted_matches = sorted(matches_data, key=lambda x: dateutil.parser.isoparse(x['fixture']['date']))
         if sorted_matches:
-            # Берем время начала первого матча
             first_match_date_str = sorted_matches[0]['fixture']['date']
             first_match_start_time = dateutil.parser.isoparse(first_match_date_str)
 
-    # Получаем текущее время с таймзоной для корректного сравнения
     now_utc = datetime.now(timezone.utc)
-    # ----- КОНЕЦ ИЗМЕНЕНИЙ -----
 
     user_predictions = {p.match_id: p for p in current_user.predictions.filter_by(tournament_id=tournament.id).all()}
 
@@ -133,16 +132,12 @@ def details(tournament_id):
         form=form,
         user_predictions=user_predictions,
         leaderboard=leaderboard,
-        # ----- ИЗМЕНЕНИЕ: Передаем переменные в шаблон -----
         first_match_start_time=first_match_start_time,
         now_utc=now_utc
     )
 
 @tournament_bp.route('/')
 def list_tournaments():
-    # --- НОВАЯ ЛОГИКА СОРТИРОВКИ ---
-
-    # 1. Создаем выражение для сортировки
     status_order = case(
         (Tournament.status == 'open', 1),
         (Tournament.status == 'active', 2),
@@ -150,11 +145,7 @@ def list_tournaments():
         else_=4
     ).label("status_order")
 
-    # 2. Применяем сортировку
-    tournaments = Tournament.query\
-        .filter(Tournament.status != 'draft')\
-        .order_by(status_order, Tournament.start_date.desc())\
-        .all()
+    tournaments = Tournament.query.filter(Tournament.status != 'draft').order_by(status_order, Tournament.start_date.desc()).all()
 
     return render_template('tournament/list.html', tournaments=tournaments, title='Tournaments')
 
@@ -168,6 +159,7 @@ def tournament_details(tournament_id):
 
     league_names_by_id = {v: k for k, v in LEAGUES.items()}
     grouped_matches = defaultdict(lambda: defaultdict(list))
+    matches_list = []
     if tournament.matches_json:
         try:
             matches_list = json.loads(tournament.matches_json)
@@ -180,7 +172,6 @@ def tournament_details(tournament_id):
         except (json.JSONDecodeError, TypeError):
             flash('Could not parse match data for this tournament.', 'warning')
 
-            # ----- ИЗМЕНЕНИЕ: Упрощенная и более безопасная логика -----
     can_leave = tournament.status in ['open', 'upcoming']
     if can_leave and matches_list:
         try:
@@ -188,10 +179,7 @@ def tournament_details(tournament_id):
             if datetime.now(timezone.utc) >= first_match_start_time:
                 can_leave = False
         except (ValueError, KeyError):
-            # Если дата матча некорректна, на всякий случай запрещаем выход
             can_leave = False
-    # ----- КОНЕЦ ИЗМЕНЕНИЙ -----
-
 
     num_attendees = len(tournament.attendees)
     form = PredictionForm()
@@ -217,9 +205,7 @@ def tournament_details(tournament_id):
         platform_fee=platform_fee,
         prize_distribution=prize_distribution,
         can_leave=can_leave,
-        # ===== НАЧАЛО НОВОГО КОДА =====
         standings_urls=LEAGUE_STANDINGS_URLS
-        # ===== КОНЕЦ НОВОГО КОДА =====
     )
 
 @tournament_bp.route('/<int:tournament_id>/predict', methods=['POST'])
@@ -292,24 +278,19 @@ def join_or_leave_tournament(tournament_id):
             flash(f'You have successfully joined the tournament: {tournament.name}!', 'success')
 
     elif action == 'leave':
-         # ----- НАЧАЛО ИЗМЕНЕНИЙ В ЛОГИКЕ ВЫХОДА -----
-        # Проверяем, есть ли матчи и время их начала
         first_match_start_time = None
         if tournament.matches_json:
             try:
                 matches_list = json.loads(tournament.matches_json)
                 if matches_list:
-                    # Сортируем на всякий случай, если порядок не гарантирован
                     matches_list.sort(key=lambda x: x['fixture']['date'])
                     first_match_start_time = dateutil.parser.isoparse(matches_list[0]['fixture']['date'])
             except (json.JSONDecodeError, TypeError, IndexError):
-                pass # Оставляем first_match_start_time = None, если данные некорректны
+                pass 
 
-        # Проверяем, можно ли покинуть турнир
         can_leave = True
         if tournament.status not in ['open', 'upcoming']:
             can_leave = False
-        # Если время первого матча определено, проверяем, не прошло ли оно
         if first_match_start_time and datetime.now(timezone.utc) >= first_match_start_time:
             can_leave = False
 
@@ -325,7 +306,6 @@ def join_or_leave_tournament(tournament_id):
             Prediction.query.filter_by(user_id=current_user.id, tournament_id=tournament.id).delete()
             db.session.commit()
             flash(f'You have left the tournament: {tournament.name}.', 'success')
-        # ----- КОНЕЦ ИЗМЕНЕНИЙ В ЛОГИКЕ ВЫХОДА -----
 
     return redirect(request.referrer or url_for('tournaments.list_tournaments'))
 
@@ -346,11 +326,17 @@ def create_tournament():
 @admin_or_organizer_required
 def select_matches(tournament_id):
     tournament = Tournament.query.get_or_404(tournament_id)
+    available_sports = {'football': 'Football'} 
+
     if request.method == 'POST':
         matches_data_json = request.form.get('selected_matches_json')
         if not matches_data_json or matches_data_json == '[]':
             flash('Please select at least one match.', 'warning')
             return redirect(url_for('tournaments.select_matches', tournament_id=tournament.id))
+        
+        selected_sport = request.form.get('sport', 'football')
+        tournament.sport = selected_sport
+
         tournament.matches_json = matches_data_json
         try:
             matches_data = json.loads(matches_data_json)
@@ -364,7 +350,8 @@ def select_matches(tournament_id):
         db.session.commit()
         flash('Tournament has been successfully created with selected matches!', 'success')
         return redirect(url_for('tournaments.tournament_details', tournament_id=tournament.id))
-    return render_template('tournament/create_step2.html', title='Select Matches', tournament=tournament, leagues=LEAGUES)
+    
+    return render_template('tournament/create_step2.html', title='Select Matches', tournament=tournament, leagues=LEAGUES, sports=available_sports)
 
 @tournament_bp.route('/get_matches/<int:league_id>')
 @login_required

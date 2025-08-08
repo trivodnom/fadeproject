@@ -11,7 +11,6 @@ Tournaments
             <a href="{{ url_for('tournaments.create_tournament') }}" class="btn btn-primary">Create New Tournament</a>
         {% endif %}
     </div>
-    <!-- === НОВЫЙ БЛОК: ПОИСК ПО ID === -->
     <div class="col-md-6">
         <div class="form-group">
             <input type="text" id="tournamentSearch" class="form-control" placeholder="Search by Tournament...">
@@ -22,10 +21,8 @@ Tournaments
 
 <div class="row" id="tournaments-list-container">
     {% for tournament in tournaments %}
-    <!-- Добавляем data-id для поиска -->
     <div class="col-lg-4 col-md-6 tournament-card" data-id="{{ tournament.id }}">
     <div class="card">
-        <!-- ИСПРАВЛЕНИЕ ЗДЕСЬ: Добавляем классы для Flexbox -->
         <div class="card-header d-flex justify-content-between align-items-center">
             <h5 class="card-title mb-0">#{{ tournament.id }} - {{ tournament.name }}</h5>
             {% set status_map = {'open': 'badge-success', 'active': 'badge-primary', 'finished': 'badge-secondary', 'cancelled': 'badge-danger'} %}
@@ -33,6 +30,14 @@ Tournaments
         </div>
         <div class="card-body">
                 <p><strong>Entry Fee:</strong> {{ tournament.entry_fee }}</p>
+                <!-- НОВАЯ СТРОКА ДЛЯ ОТОБРАЖЕНИЯ ИКОНКИ СПОРТА -->
+                <p>
+                    <strong>Sport:</strong>
+                    <img src="{{ url_for('static', filename='img/icons/' ~ tournament.sport ~ '.svg') }}"
+                         alt="{{ tournament.sport }}"
+                         style="width: 20px; height: 20px; vertical-align: middle; margin-left: 5px;"
+                         onerror="this.onerror=null; this.style.display='none';">
+                </p>
                 <p><strong>Starts:</strong> {{ tournament.start_date.strftime('%d %b %Y') if tournament.start_date }}</p>
                 <p><strong>Ends:</strong> {{ tournament.end_date.strftime('%d %b %Y') if tournament.end_date }}</p>
                 <p><strong>Participants:</strong> {{ tournament.attendees|length }} / {{ tournament.max_participants or 'Unlimited' }}</p>
@@ -81,18 +86,11 @@ $(document).ready(function(){
         var value = $(this).val().toLowerCase();
 
         $("#tournaments-list-container .tournament-card").filter(function() {
-            // --- НАЧАЛО ИЗМЕНЕНИЙ ---
-            // 1. Получаем текст ID
             var idText = $(this).data('id').toString().toLowerCase();
-            // 2. Получаем текст заголовка
             var nameText = $(this).find('.card-title').text().toLowerCase();
-
-            // 3. Показываем, если совпадение есть ИЛИ в ID, ИЛИ в названии
             var idMatch = idText.indexOf(value) > -1;
             var nameMatch = nameText.indexOf(value) > -1;
-
             $(this).toggle(idMatch || nameMatch);
-            // --- КОНЕЦ ИЗМЕНЕНИЙ ---
         });
     });
 });

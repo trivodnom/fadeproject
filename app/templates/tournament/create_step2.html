@@ -5,12 +5,27 @@
 {% block content %}
 <div class="row">
     <div class="col-md-4">
+        <!-- БЛОК ВЫБОРА СПОРТА -->
+        <div class="card">
+            <div class="card-header"><h5 class="card-title">Sport</h5></div>
+            <div class="card-body">
+                <div class="form-group">
+                    <label for="sport-selector">Select a Sport</label>
+                    <!-- Атрибут form="finish-form" связывает этот селектор с формой отправки -->
+                    <select id="sport-selector" name="sport" form="finish-form" class="form-control">
+                        {% for sport_key, sport_name in sports.items() %}
+                            <option value="{{ sport_key }}" {{ 'selected' if tournament.sport == sport_key or not tournament.sport and loop.first }}>{{ sport_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+
         <div class="card">
             <div class="card-header"><h5 class="card-title">Leagues</h5></div>
             <div class="card-body">
                 <div class="form-group">
-                    <label for="league-selector">Select a League</label>
-                    <select id="league-selector" class="form-control">
+                    <label for="league-selector">Select a League</label>                    <select id="league-selector" class="form-control">
                         <option selected disabled>Choose here...</option>
                         {% for league_name, league_id in leagues.items() %}
                             <option value="{{ league_id }}">{{ league_name }}</option>
@@ -84,7 +99,6 @@ $(document).ready(function(){
         $.getJSON('/tournaments/get_matches/' + leagueId, function(data) {
             matchesContainer.empty();
             if (data && Array.isArray(data) && data.length > 0) {
-                // --- НАЧАЛО ИЗМЕНЕНИЙ ---
                 var accordion = $('<div class="accordion" id="roundsAccordion"></div>');
 
                 $.each(data, function(index, roundData) {
@@ -129,7 +143,6 @@ $(document).ready(function(){
                     accordion.append(card);
                 });
                 matchesContainer.append(accordion);
-                // --- КОНЕЦ ИЗМЕНЕНИЙ ---
             } else {
                 matchesContainer.html('<p>No available matches found for this league.</p>');
             }
