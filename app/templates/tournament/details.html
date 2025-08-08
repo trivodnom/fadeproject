@@ -105,7 +105,12 @@
                                                 {% for match in matches %}
                                                     <tr id="match-{{ match.fixture.id }}">
                                                         <td data-label="Date">{{ match.fixture.date | format_datetime }}</td>
-                                                        <td data-label="Match" class="match-cell"><img src="{{ match.teams.home.logo }}" style="width: 24px; height: 24px; vertical-align: middle; margin-right: 5px;"> {{ match.teams.home.name }} vs {{ match.teams.away.name }} <img src="{{ match.teams.away.logo }}" style="width: 24px; height: 24px; vertical-align: middle; margin-left: 5px;"></td>
+                                                        <!-- ===== ИЗМЕНЕНИЕ ЗДЕСЬ: ССЫЛКИ НА ЛОГОТИПЫ ВЕДУТ НА НАШ КЭШИРУЮЩИЙ РОУТ ===== -->
+                                                        <td data-label="Match" class="match-cell">
+                                                            <img src="{{ url_for('main.get_team_logo', team_id=match.teams.home.id) }}" style="width: 24px; height: 24px; vertical-align: middle; margin-right: 5px;"> 
+                                                            {{ match.teams.home.name }} vs {{ match.teams.away.name }} 
+                                                            <img src="{{ url_for('main.get_team_logo', team_id=match.teams.away.id) }}" style="width: 24px; height: 24px; vertical-align: middle; margin-left: 5px;">
+                                                        </td>
                                                         <td data-label="Result" class="text-center">
                                                             {% set prediction = user_predictions.get(match.fixture.id | string) %}
                                                             {% if prediction and prediction.home_score_actual is not none %}
@@ -220,55 +225,12 @@
                                 {% set can_join = False %}
                                 {% set reason = 'You do not have enough funds to join. Required: ' ~ tournament.entry_fee ~ ', you have: ' ~ current_user.balance %}
                             {% endif %}
-
                             <button type="submit" name="action" value="join" class="btn btn-success btn-block" {% if not can_join %}disabled title="{{ reason }}"{% endif %}>
                                 Join Tournament
                             </button>
                         </form>
                     {% endif %}
                 {% endif %}
-            </div>
-        </div>
-        <div class="card">
-            <div class="card-header"><h4 class="card-title">Prize rules</h4></div>
-            <div class="card-body">
-                <h6>Как делятся призы при ничьей?</h6>
-                <p>Если несколько участников набирают одинаковое количество очков и претендуют на призовые места, происходит следующее:</p>
-                <ol>
-                    <li><strong>Призы суммируются.</strong> Все призовые деньги за места, которые делят игроки, складываются вместе.</li>
-                    <li><strong>Сумма делится поровну.</strong></li>
-                    <li><strong>Следующие места пропускаются.</strong></li>
-                </ol>
-            </div>
-        </div>
-        <div class="card">
-            <div class="card-header"><h4 class="card-title">Points rules</h4></div>
-            <div class="card-body">
-                <ul>
-                    <li><strong>5 очков:</strong> За точно угаданный счет.</li>
-                    <li><strong>3 очка:</strong> За угаданный исход матча и разницу мячей.</li>
-                    <li><strong>2 очка:</strong> За угаданный исход матча.</li>
-                    <li><strong>1 очко:</strong> За угаданное количество голов одной из команд.</li>
-                </ul>
-            </div>
-        </div>
-        <div class="card">
-            <div class="card-header"><h4 class="card-title">Leaderboard</h4></div>
-            <div class="card-body">
-                <table class="table tablesorter">
-                    <thead class="text-primary"><tr><th>Rank</th><th>User</th><th>Points</th></tr></thead>
-                    <tbody>
-                        {% for username, points in leaderboard %}
-                        <tr>
-                            <td>{{ loop.index }}</td>
-                            <td>{{ username }}</td>
-                            <td>{{ points or 0 }}</td>
-                        </tr>
-                        {% else %}
-                        <tr><td colspan="3">No participants yet.</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
             </div>
         </div>
     </div>
