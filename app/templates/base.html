@@ -57,7 +57,25 @@
       background-color: #2b3553;
       color: #ffffff;
     }
+
+    /* ==== СТИЛИ ДЛЯ РЕЖИМА TELEGRAM MINI APP ==== */
+    body.is-mini-app .sidebar,
+    body.is-mini-app .main-panel .navbar,
+    body.is-mini-app .footer {
+      display: none !important;
+    }
+    body.is-mini-app .main-panel {
+      width: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+    body.is-mini-app .content {
+        padding: 15px !important; /* Уменьшаем отступы для компактности */
+    }
   </style>
+
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
 </head>
 <body class="">
   <div class="preloader">
@@ -67,7 +85,6 @@
   <div class="wrapper">
     <div class="sidebar">
       <div class="sidebar-wrapper">
-        <!-- ЛОГОТИП УБРАН ОТСЮДА -->
         <ul class="nav">
           {% if current_user.is_authenticated and current_user.role == 'admin' %}
             <li class="{{ 'active' if request.endpoint == 'main.dashboard' else '' }}"><a href="{{ url_for('main.dashboard') }}"><i class="tim-icons icon-chart-pie-36"></i><p>Dashboard</p></a></li>
@@ -91,7 +108,6 @@
             <div class="navbar-toggle d-inline">
               <button type="button" class="navbar-toggler"><span class="navbar-toggler-bar bar1"></span><span class="navbar-toggler-bar bar2"></span><span class="navbar-toggler-bar bar3"></span></button>
             </div>
-            <!-- ИЗМЕНЕНИЕ: Логотип добавлен сюда, рядом с названием страницы -->
             <a class="navbar-brand" href="{{ url_for('main.index') }}">
               <img src="data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3e%3cpath fill='%23FFFFFF' d='M5 70.48l19.108-19.108a2.029 2.029 0 0 0 0-2.87L5.058 29.45l7.545-7.546 21.89 21.89a8.685 8.685 0 0 1 0 12.283L12.659 77.912 5 70.48zm90-41.03L75.892 48.559a2.029 2.029 0 0 0 0 2.87l19.05 19.051-7.545 7.546-21.89-21.89a8.685 8.685 0 0 1 0-12.283l21.834-21.834L95 29.45zM29.428 5l19.108 19.108a2.029 2.029 0 0 0 2.87 0l19.052-19.05 7.546 7.545-21.89 21.89a8.685 8.685 0 0 1-12.283 0L21.997 12.659 29.428 5zm41.144 90L51.463 75.892a2.029 2.029 0 0 0-2.87 0l-19.051 19.05-7.546-7.545 21.89-21.89a8.685 8.685 0 0 1 12.283 0l21.834 21.834L70.572 95z'/%3e%3c/svg%3e" alt="Logo" style="height: 30px; margin-right: 15px; vertical-align: middle;">
               <span style="vertical-align: middle;">{% block page_title %}{% endblock %}</span>
@@ -130,7 +146,7 @@
         {% block content %}{% endblock %}
       </div>
       <footer class="footer">
-        <div class="container-fluid"><div class="copyright">© <script>document.write(new Date().getFullYear())</script> made with <i class="tim-icons icon-heart-2"></i> by PROJECTFADE for better betting experience. beta v1.1.0</div></div>
+        <div class="container-fluid"><div class="copyright">© <script>document.write(new Date().getFullYear())</script> made with <i class="tim-icons icon-heart-2"></i> by PROJECTFADE for better betting experience. beta v1.2.0</div></div>
       </footer>
     </div>
   </div>
@@ -180,6 +196,17 @@
                 $body.addClass('nav-open');
             }
         });
+
+        // ==== СКРИПТ ДЛЯ АДАПТАЦИИ ПОД MINI APP ====
+        try {
+            if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) {
+                document.body.classList.add('is-mini-app');
+                Telegram.WebApp.ready();
+                Telegram.WebApp.expand();
+            }
+        } catch (e) {
+            console.error("Telegram Web App script error:", e);
+        }
     });
   </script>
 

@@ -99,13 +99,11 @@
                                 {% for round_name, matches in rounds.items() %}
                                     <h6 class="mt-3 text-muted">{{ round_name }}</h6>
                                     <div class="table-responsive">
-                                        <!-- ИЗМЕНЕНИЕ 1: Добавляем класс 'responsive-table' к таблице -->
                                         <table class="table tablesorter responsive-table">
                                             <thead class="text-primary"><tr><th>Date</th><th>Match</th><th class="text-center">Result</th><th class="text-center">Your Prediction</th><th class="text-center">Points</th></tr></thead>
                                             <tbody>
                                                 {% for match in matches %}
                                                     <tr id="match-{{ match.fixture.id }}">
-                                                        <!-- ИЗМЕНЕНИЕ 2: Добавляем атрибуты data-label для мобильной верстки -->
                                                         <td data-label="Date">{{ match.fixture.date | format_datetime }}</td>
                                                         <td data-label="Match" class="match-cell"><img src="{{ match.teams.home.logo }}" style="width: 24px; height: 24px; vertical-align: middle; margin-right: 5px;"> {{ match.teams.home.name }} vs {{ match.teams.away.name }} <img src="{{ match.teams.away.logo }}" style="width: 24px; height: 24px; vertical-align: middle; margin-left: 5px;"></td>
                                                         <td data-label="Result" class="text-center">
@@ -199,26 +197,14 @@
                 {% if current_user.is_authenticated %}
                     {% if tournament in current_user.tournaments %}
                         <button type="button" class="btn btn-outline-success btn-block" disabled>You have joined</button>
-
-                        <!-- Этот блок теперь на своем месте и работает правильно -->
-                        {% set can_leave = [True] %}
-                        {% if tournament.status not in ['open', 'upcoming'] %}
-                            {% if can_leave.pop() %}{% endif %}
-                        {% endif %}
-                        {% if first_match_start_time and now_utc >= first_match_start_time %}
-                             {% if can_leave.pop() %}{% endif %}
-                        {% endif %}
-
+                        {% if can_leave %}
                         <form action="{{ url_for('tournaments.join_or_leave_tournament', tournament_id=tournament.id) }}" method="post" class="mt-2" onsubmit="return confirm('Are you sure you want to leave this tournament? Your entry fee will be refunded.');">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                            <button type="submit" name="action" value="leave" class="btn btn-danger btn-block"
-                                    {% if not can_leave %}
-                                        disabled
-                                        title="You can no longer leave this tournament as it has already started."
-                                    {% endif %}>
+                            <button type="submit" name="action" value="leave" class="btn btn-danger btn-block">
                                 Leave Tournament
                             </button>
                         </form>
+                        {% endif %}
                     {% else %}
                         <form action="{{ url_for('tournaments.join_or_leave_tournament', tournament_id=tournament.id) }}" method="post" id="join-leave-form">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
@@ -249,13 +235,9 @@
                 <h6>Как делятся призы при ничьей?</h6>
                 <p>Если несколько участников набирают одинаковое количество очков и претендуют на призовые места, происходит следующее:</p>
                 <ol>
-                    <li><strong>Призы суммируются.</strong> Все призовые деньги за места, которые делят игроки, складываются вместе.
-                        <br><em>Пример: Два игрока делят 1-е место. Мы берем приз за 1-е и 2-е места и складываем их.</em>
-                    </li>
-                    <li><strong>Сумма делится поровну.</strong> Получившаяся общая сумма делится поровну между всеми игроками, набравшими одинаковое количество очков.</li>
-                    <li><strong>Следующие места пропускаются.</strong> Следующий по очкам игрок займет место, идущее сразу за последним из "поделивших".
-                        <br><em>Пример: Если двое поделили 1-е место, то следующий игрок в таблице лидеров занимает уже 3-е место.</em>
-                    </li>
+                    <li><strong>Призы суммируются.</strong> Все призовые деньги за места, которые делят игроки, складываются вместе.</li>
+                    <li><strong>Сумма делится поровну.</strong></li>
+                    <li><strong>Следующие места пропускаются.</strong></li>
                 </ol>
             </div>
         </div>
@@ -265,7 +247,7 @@
                 <ul>
                     <li><strong>5 очков:</strong> За точно угаданный счет.</li>
                     <li><strong>3 очка:</strong> За угаданный исход матча и разницу мячей.</li>
-                    <li><strong>2 очка:</strong> За угаданный исход матча (победа, поражение или ничья).</li>
+                    <li><strong>2 очка:</strong> За угаданный исход матча.</li>
                     <li><strong>1 очко:</strong> За угаданное количество голов одной из команд.</li>
                 </ul>
             </div>
@@ -302,6 +284,24 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
             alert(this.dataset.reason);
         });
+    }
+
+    // ==== НОВЫЙ СКРИПТ: Навигация для Mini App ====
+    try {
+        if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) {
+            let tg = window.Telegram.WebApp;
+            
+            // 1. На этой странице главная кнопка не нужна.
+            tg.MainButton.hide();
+
+            // 2. Показываем кнопку "Назад" и настраиваем ее.
+            tg.BackButton.show();
+            tg.BackButton.onClick(function() {
+                window.history.back();
+            });
+        }
+    } catch (e) {
+        console.error("Telegram script error:", e);
     }
 });
 </script>

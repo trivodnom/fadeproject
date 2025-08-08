@@ -3,12 +3,10 @@
 
 {% block content %}
 <!-- === ВЕРХНИЙ РЯД: ПРОФИЛЬ И РЕДАКТИРОВАНИЕ === -->
-<!-- ИЗМЕНЕНИЕ 1: Добавляем 'd-flex', чтобы колонки растягивались по высоте -->
 <div class="row d-flex">
 
     <!-- Колонка с карточкой пользователя -->
     <div class="col-md-4 d-flex">
-        <!-- ИЗМЕНЕНИЕ 2: 'flex-fill' заставляет карточку занять все доступное место в колонке -->
         <div class="card card-user flex-fill">
             <div class="card-body">
                 <p class="card-text"></p>
@@ -22,7 +20,6 @@
                     <h5 class="title mt-3">{{ current_user.username }}</h5>
                     <p class="description">Role: {{ current_user.role.title() }}</p>
                 </div>
-                <!-- ИЗМЕНЕНИЕ 3: Добавляем отступ 'my-3' к кнопке, чтобы отодвинуть ее от <hr> -->
                 <div class="text-center my-3">
                     <form action="{{ url_for('profile.delete_avatar') }}" method="post" style="display:inline;">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
@@ -53,7 +50,6 @@
                         {{ form.email(class="form-control") }}
                         {% for error in form.email.errors %}<small class="form-text text-danger">{{ error }}</small>{% endfor %}
                     </div>
-                    <!-- ИЗМЕНЕНИЕ 4: Убираем лишний .card-footer -->
                     <button type="submit" class="btn btn-fill btn-primary">Save Profile Info</button>
                 </form>
             </div>
@@ -119,6 +115,24 @@ document.addEventListener('DOMContentLoaded', function() {
                 })
                 .catch(error => console.error('Error loading more history:', error));
         });
+    }
+
+    // ==== НОВЫЙ СКРИПТ: Навигация для Mini App ====
+    try {
+        if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) {
+            let tg = window.Telegram.WebApp;
+            
+            // 1. На этой странице главная кнопка не нужна.
+            tg.MainButton.hide();
+
+            // 2. Показываем кнопку "Назад" и настраиваем ее.
+            tg.BackButton.show();
+            tg.BackButton.onClick(function() {
+                window.history.back();
+            });
+        }
+    } catch (e) {
+        console.error("Telegram script error:", e);
     }
 });
 </script>

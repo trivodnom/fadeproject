@@ -26,11 +26,18 @@
                         <small class="form-text text-danger">{{ error }}</small>
                         {% endfor %}
                     </div>
+
+                    <!-- ===== ИЗМЕНЕНИЕ ЗДЕСЬ: Правильная структура для кастомного чекбокса ==== -->
                     <div class="form-check">
-                        {{ form.remember_me(class="form-check-input") }}
-                        {{ form.remember_me.label(class="form-check-label") }}
+                        <label class="form-check-label">
+                            {{ form.remember_me(class="form-check-input") }}
+                            {{ form.remember_me.label.text }}
+                            <span class="form-check-sign"><span class="check"></span></span>
+                        </label>
                     </div>
-                    <div class="card-footer">
+                    <!-- ===== КОНЕЦ ИЗМЕНЕНИЙ ==== -->
+                    
+                    <div class="mt-4">
                         {{ form.submit(class="btn btn-fill btn-primary") }}
                     </div>
                 </form>

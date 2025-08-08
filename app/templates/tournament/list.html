@@ -159,6 +159,29 @@ $(document).ready(function(){
     $('#toggle-filters-btn').on('click', function() {
         $('#filters-container').slideToggle();
     });
+
+    // ==== ИЗМЕНЕННЫЙ СКРИПТ: Навигация для Mini App ====
+    try {
+        if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) {
+            let tg = window.Telegram.WebApp;
+            
+            // 1. На этой странице кнопка "Назад" не нужна.
+            tg.BackButton.hide();
+
+            // 2. Показываем главную кнопку, если пользователь вошел в систему.
+            {% if current_user.is_authenticated %}
+                tg.MainButton.setText("View Profile");
+                tg.MainButton.show();
+                tg.MainButton.onClick(function(){
+                    window.location.href = "{{ url_for('profile.profile', _external=True) }}";
+                });
+            {% else %}
+                tg.MainButton.hide();
+            {% endif %}
+        }
+    } catch (e) {
+        console.error("Telegram script error:", e);
+    }
 });
 </script>
 {% endblock %}
