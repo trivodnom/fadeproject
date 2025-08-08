@@ -9,7 +9,7 @@ from app.tournament import tournament_bp
 from app.tournament.forms import TournamentCreationForm, PredictionForm
 from app.decorators import admin_or_organizer_required
 from app.models import Tournament, BalanceHistory, Prediction, User
-from app.api_client import LEAGUES, get_matches_for_league
+from app.api_client import LEAGUES, get_matches_for_league, LEAGUE_STANDINGS_URLS
 from app.tournament.utils import calculate_points, calculate_prize_distribution
 from collections import defaultdict
 
@@ -205,7 +205,22 @@ def tournament_details(tournament_id):
     prize_distribution = calculate_prize_distribution(tournament, num_attendees)
     platform_fee = (num_attendees * tournament.entry_fee) * 0.10
 
-    return render_template('tournament/details.html', tournament=tournament, title=tournament.name, form=form, grouped_matches=grouped_matches, user_predictions=user_predictions, leaderboard=leaderboard, num_attendees=num_attendees, platform_fee=platform_fee, prize_distribution=prize_distribution)
+    return render_template(
+        'tournament/details.html',
+        tournament=tournament,
+        title=tournament.name,
+        form=form,
+        grouped_matches=grouped_matches,
+        user_predictions=user_predictions,
+        leaderboard=leaderboard,
+        num_attendees=num_attendees,
+        platform_fee=platform_fee,
+        prize_distribution=prize_distribution,
+        can_leave=can_leave,
+        # ===== НАЧАЛО НОВОГО КОДА =====
+        standings_urls=LEAGUE_STANDINGS_URLS
+        # ===== КОНЕЦ НОВОГО КОДА =====
+    )
 
 @tournament_bp.route('/<int:tournament_id>/predict', methods=['POST'])
 @login_required

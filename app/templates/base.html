@@ -5,13 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
   <link rel="apple-touch-icon" sizes="76x76" href="{{ url_for('static', filename='img/apple-icon.png') }}">
   <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/favicon.png') }}">
-  <title>{% if title %}{{ title }} - {% endif %}PROJECTFADE</title>
+  <title>{% if title %}{{ title }} - {% endif %}Fade</title>
   <link href="https://fonts.googleapis.com/css?family=Poppins:200,300,400,600,700,800" rel="stylesheet" />
   <link href="https://use.fontawesome.com/releases/v5.0.6/css/all.css" rel="stylesheet">
   <link href="{{ url_for('static', filename='css/nucleo-icons.css') }}" rel="stylesheet" />
   <link href="{{ url_for('static', filename='css/black-dashboard.css') }}?v=1.0.0" rel="stylesheet" />
 
-  <!-- ===== НАЧАЛО: СТИЛИ ДЛЯ НОВОГО ПРЕЛОАДЕРА ===== -->
   <style>
     /* Основной контейнер прелоадера */
     .preloader {
@@ -22,40 +21,23 @@
       width: 100%;
       height: 100%;
       overflow: visible;
-      /* Фон в цвет вашего сайта для плавного перехода */
       background: #1e1e2f;
       display: flex;
       justify-content: center;
       align-items: center;
-      /* Плавное исчезновение */
       opacity: 1;
       visibility: visible;
       transition: opacity 0.5s ease-out, visibility 0.5s ease-out;
     }
-
-    /* Класс для скрытия прелоадера */
     .preloader.hidden {
       opacity: 0;
       visibility: hidden;
     }
-
-    /* Анимация пульсации */
     @keyframes pulse {
-      0% {
-        transform: scale(0.95);
-        opacity: 0.7;
-      }
-      50% {
-        transform: scale(1.05);
-        opacity: 1;
-      }
-      100% {
-        transform: scale(0.95);
-        opacity: 0.7;
-      }
+      0% { transform: scale(0.95); opacity: 0.7; }
+      50% { transform: scale(1.05); opacity: 1; }
+      100% { transform: scale(0.95); opacity: 0.7; }
     }
-
-    /* Стили для иконки */
     .loader-icon {
       background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3e%3cpath fill='%236363F5' d='M5 70.48l19.108-19.108a2.029 2.029 0 0 0 0-2.87L5.058 29.45l7.545-7.546 21.89 21.89a8.685 8.685 0 0 1 0 12.283L12.659 77.912 5 70.48zm90-41.03L75.892 48.559a2.029 2.029 0 0 0 0 2.87l19.05 19.051-7.545 7.546-21.89-21.89a8.685 8.685 0 0 1 0-12.283l21.834-21.834L95 29.45zM29.428 5l19.108 19.108a2.029 2.029 0 0 0 2.87 0l19.052-19.05 7.546 7.545-21.89 21.89a8.685 8.685 0 0 1-12.283 0L21.997 12.659 29.428 5zm41.144 90L51.463 75.892a2.029 2.029 0 0 0-2.87 0l-19.051 19.05-7.546-7.545 21.89-21.89a8.685 8.685 0 0 1 12.283 0l21.834 21.834L70.572 95z'/%3e%3c/svg%3e");
       animation: pulse 2s ease-in-out infinite;
@@ -66,34 +48,26 @@
       height: 80px;
       opacity: 0.8;
     }
-
-    /* Стили для селекторов, чтобы они были видны на темном фоне */
     select.form-control, select.form-control:focus {
       background-color: #2b3553;
       color: #ffffff;
       border: 1px solid #32325d;
     }
-
     select.form-control option {
       background-color: #2b3553;
       color: #ffffff;
     }
   </style>
-  <!-- ===== КОНЕЦ: СТИЛИ ДЛЯ НОВОГО ПРЕЛОАДЕРА ===== -->
 </head>
 <body class="">
-  <!-- ===== НАЧАЛО: HTML-КОД НОВОГО ПРЕЛОАДЕРА ===== -->
   <div class="preloader">
     <div class="loader-icon"></div>
   </div>
-  <!-- ===== КОНЕЦ: HTML-КОД НОВОГО ПРЕЛОАДЕРА ===== -->
 
   <div class="wrapper">
     <div class="sidebar">
       <div class="sidebar-wrapper">
-        <div class="logo">
-          <a href="{{ url_for('main.index') }}" class="simple-text logo-normal">FadeProject</a>
-        </div>
+        <!-- ЛОГОТИП УБРАН ОТСЮДА -->
         <ul class="nav">
           {% if current_user.is_authenticated and current_user.role == 'admin' %}
             <li class="{{ 'active' if request.endpoint == 'main.dashboard' else '' }}"><a href="{{ url_for('main.dashboard') }}"><i class="tim-icons icon-chart-pie-36"></i><p>Dashboard</p></a></li>
@@ -104,7 +78,6 @@
             <li><a href="{{ url_for('auth.login') }}"><i class="tim-icons icon-single-02"></i><p>Login</p></a></li>
             <li><a href="{{ url_for('auth.register') }}"><i class="tim-icons icon-badge"></i><p>Register</p></a></li>
           {% else %}
-            <!-- ИСПРАВЛЕНИЕ: Заменил profile.profile на user.profile, как мы делали ранее -->
             <li class="{{ 'active' if request.endpoint == 'profile.profile' else '' }}"><a href="{{ url_for('profile.profile') }}"><i class="tim-icons icon-single-02"></i><p>Profile</p></a></li>
             <li><a href="{{ url_for('auth.logout') }}"><i class="tim-icons icon-button-power"></i><p>Logout</p></a></li>
           {% endif %}
@@ -118,7 +91,11 @@
             <div class="navbar-toggle d-inline">
               <button type="button" class="navbar-toggler"><span class="navbar-toggler-bar bar1"></span><span class="navbar-toggler-bar bar2"></span><span class="navbar-toggler-bar bar3"></span></button>
             </div>
-            <a class="navbar-brand" href="javascript:void(0)">{% block page_title %}{% endblock %}</a>
+            <!-- ИЗМЕНЕНИЕ: Логотип добавлен сюда, рядом с названием страницы -->
+            <a class="navbar-brand" href="{{ url_for('main.index') }}">
+              <img src="data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3e%3cpath fill='%23FFFFFF' d='M5 70.48l19.108-19.108a2.029 2.029 0 0 0 0-2.87L5.058 29.45l7.545-7.546 21.89 21.89a8.685 8.685 0 0 1 0 12.283L12.659 77.912 5 70.48zm90-41.03L75.892 48.559a2.029 2.029 0 0 0 0 2.87l19.05 19.051-7.545 7.546-21.89-21.89a8.685 8.685 0 0 1 0-12.283l21.834-21.834L95 29.45zM29.428 5l19.108 19.108a2.029 2.029 0 0 0 2.87 0l19.052-19.05 7.546 7.545-21.89 21.89a8.685 8.685 0 0 1-12.283 0L21.997 12.659 29.428 5zm41.144 90L51.463 75.892a2.029 2.029 0 0 0-2.87 0l-19.051 19.05-7.546-7.545 21.89-21.89a8.685 8.685 0 0 1 12.283 0l21.834 21.834L70.572 95z'/%3e%3c/svg%3e" alt="Logo" style="height: 30px; margin-right: 15px; vertical-align: middle;">
+              <span style="vertical-align: middle;">{% block page_title %}{% endblock %}</span>
+            </a>
           </div>
           <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navigation" aria-controls="navigation-index" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-bar navbar-kebab"></span>
@@ -138,7 +115,6 @@
                   <p class="d-lg-none">{{ current_user.username }}</p>
                 </a>
                 <ul class="dropdown-menu dropdown-navbar">
-                  <!-- ИСПРАВЛЕНИЕ: Заменил profile.profile на user.profile -->
                   <li class="nav-link"><a href="{{ url_for('profile.profile') }}" class="nav-item dropdown-item">Profile</a></li>
                   <li class="dropdown-divider"></li>
                   <li class="nav-link"><a href="{{ url_for('auth.logout') }}" class="nav-item dropdown-item">Log out</a></li>
@@ -154,7 +130,7 @@
         {% block content %}{% endblock %}
       </div>
       <footer class="footer">
-        <div class="container-fluid"><div class="copyright">© <script>document.write(new Date().getFullYear())</script> made with <i class="tim-icons icon-heart-2"></i> by PROJECTFADE for better betting experience.</div></div>
+        <div class="container-fluid"><div class="copyright">© <script>document.write(new Date().getFullYear())</script> made with <i class="tim-icons icon-heart-2"></i> by PROJECTFADE for better betting experience. beta v1.0.2</div></div>
       </footer>
     </div>
   </div>
@@ -176,9 +152,7 @@
   <script src="{{ url_for('static', filename='js/plugins/bootstrap-notify.js') }}"></script>
   <script src="{{ url_for('static', filename='js/black-dashboard.min.js') }}?v=1.0.0"></script>
 
-  <!-- ===== НАЧАЛО: JAVASCRIPT ДЛЯ НОВОГО ПРЕЛОАДЕРА И ДРУГИХ ФУНКЦИЙ ===== -->
   <script>
-    // Скрипт для скрытия прелоадера
     window.addEventListener('load', function() {
         const preloader = document.querySelector('.preloader');
         if (preloader) {
@@ -187,7 +161,6 @@
     });
 
     $(document).ready(function() {
-        // Скрипт для модального окна с причиной отказа входа в турнир
         $('#join-leave-form').on('submit', function(e) {
             var joinButton = $(this).find('button[value="join"]');
             if (joinButton.data('cant-join')) {
@@ -198,7 +171,6 @@
             }
         });
 
-        // Скрипт для работы бургер-меню
         var $body = $('body');
         var $sidebar_toggler = $('.navbar-wrapper .navbar-toggler');
         $sidebar_toggler.on('click', function() {
@@ -210,7 +182,6 @@
         });
     });
   </script>
-  <!-- ===== КОНЕЦ: JAVASCRIPT ===== -->
 
   {% block scripts %}{% endblock %}
 </body>

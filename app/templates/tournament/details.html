@@ -2,6 +2,71 @@
 
 {% block page_title %}{{ tournament.name }}{% endblock %}
 
+{% block extra_css %}
+<!-- ===== НАЧАЛО: СТИЛИ ДЛЯ АДАПТИВНОЙ ТАБЛИЦЫ ===== -->
+<style>
+/* Стили для мобильных устройств (ширина экрана до 768px) */
+@media (max-width: 767.98px) {
+    /* Скрываем стандартный заголовок таблицы */
+    .responsive-table thead {
+        display: none;
+    }
+
+    /* Превращаем строки таблицы в блочные элементы (карточки) */
+    .responsive-table tbody,
+    .responsive-table tr,
+    .responsive-table td {
+        display: block;
+        width: 100%;
+    }
+
+    .responsive-table tr {
+        margin-bottom: 1rem;
+        border: 1px solid #32325d; /* Рамка для каждой карточки матча */
+        border-radius: .2857rem; /* Скругляем углы как у карточек */
+        padding: 1rem;
+    }
+
+    /* Убираем рамки у ячеек, так как теперь есть рамка у строки */
+    .responsive-table td {
+        border: none;
+        padding-left: 0;
+        padding-right: 0;
+        text-align: right; /* Выравниваем содержимое по правому краю */
+        position: relative;
+    }
+
+    /* Создаем "заголовок" для каждой ячейки с помощью псевдо-элемента */
+    .responsive-table td:before {
+        content: attr(data-label); /* Берем текст из атрибута data-label */
+        position: absolute;
+        left: 0;
+        width: 45%;
+        padding-right: 10px;
+        white-space: nowrap;
+        text-align: left;
+        font-weight: bold;
+        color: #9a9a9a; /* Цвет как у .card-category */
+    }
+
+    /* Центрируем команды и логотипы */
+    .responsive-table .match-cell {
+        text-align: center !important;
+        margin-bottom: 1rem;
+    }
+    .responsive-table .match-cell:before {
+        display: none; /* Убираем псевдо-элемент для ячейки с матчем */
+    }
+
+    /* Стили для формы прогноза */
+    .responsive-table .prediction-form {
+        justify-content: flex-end !important; /* Прижимаем форму к правому краю */
+    }
+}
+</style>
+<!-- ===== КОНЕЦ: СТИЛЕЙ ===== -->
+{% endblock %}
+
 {% block content %}
 <div class="row">
     <div class="col-md-8">
@@ -12,26 +77,38 @@
                 <div class="accordion" id="leaguesAccordion">
                     {% for league_name, rounds in grouped_matches.items() %}
                     <div class="card bg-dark mb-1">
-                        <div class="card-header" id="heading-{{ loop.index }}">
+                        <div class="card-header d-flex justify-content-between align-items-center" id="heading-{{ loop.index }}">
                             <h5 class="mb-0">
                                 <button class="btn btn-link text-white" type="button" data-toggle="collapse" data-target="#collapse-{{ loop.index }}" aria-expanded="{{ 'true' if loop.first else 'false' }}">
                                     {{ league_name }}
                                 </button>
                             </h5>
+                            <!-- Кнопка для просмотра таблицы (ИСПРАВЛЕНО) -->
+                            {% set first_match = rounds.values() | first | first %}
+                            {% if first_match %}
+                                {% set league_id = first_match['league']['id'] %}
+                                {% if league_id in standings_urls %}
+                                <a href="{{ standings_urls[league_id] }}" target="_blank" class="btn btn-info btn-sm">
+                                    <i class="tim-icons icon-align-center"></i> Standings
+                                </a>
+                                {% endif %}
+                            {% endif %}
                         </div>
                         <div id="collapse-{{ loop.index }}" class="collapse {{ 'show' if loop.first }}" data-parent="#leaguesAccordion">
                             <div class="card-body">
                                 {% for round_name, matches in rounds.items() %}
                                     <h6 class="mt-3 text-muted">{{ round_name }}</h6>
                                     <div class="table-responsive">
-                                        <table class="table tablesorter">
+                                        <!-- ИЗМЕНЕНИЕ 1: Добавляем класс 'responsive-table' к таблице -->
+                                        <table class="table tablesorter responsive-table">
                                             <thead class="text-primary"><tr><th>Date</th><th>Match</th><th class="text-center">Result</th><th class="text-center">Your Prediction</th><th class="text-center">Points</th></tr></thead>
                                             <tbody>
                                                 {% for match in matches %}
                                                     <tr id="match-{{ match.fixture.id }}">
-                                                        <td>{{ match.fixture.date | format_datetime }}</td>
-                                                        <td><img src="{{ match.teams.home.logo }}" style="width: 24px; height: 24px; vertical-align: middle; margin-right: 5px;"> {{ match.teams.home.name }} vs {{ match.teams.away.name }} <img src="{{ match.teams.away.logo }}" style="width: 24px; height: 24px; vertical-align: middle; margin-left: 5px;"></td>
-                                                        <td class="text-center">
+                                                        <!-- ИЗМЕНЕНИЕ 2: Добавляем атрибуты data-label для мобильной верстки -->
+                                                        <td data-label="Date">{{ match.fixture.date | format_datetime }}</td>
+                                                        <td data-label="Match" class="match-cell"><img src="{{ match.teams.home.logo }}" style="width: 24px; height: 24px; vertical-align: middle; margin-right: 5px;"> {{ match.teams.home.name }} vs {{ match.teams.away.name }} <img src="{{ match.teams.away.logo }}" style="width: 24px; height: 24px; vertical-align: middle; margin-left: 5px;"></td>
+                                                        <td data-label="Result" class="text-center">
                                                             {% set prediction = user_predictions.get(match.fixture.id | string) %}
                                                             {% if prediction and prediction.home_score_actual is not none %}
                                                                 <strong>{{ prediction.home_score_actual }} : {{ prediction.away_score_actual }}</strong>
@@ -39,16 +116,12 @@
                                                                 - : -
                                                             {% endif %}
                                                         </td>
-                                                        <td class="text-center">
+                                                        <td data-label="Your Prediction" class="text-center">
                                                             {% if current_user.is_authenticated and tournament in current_user.tournaments %}
                                                                 {% set prediction = user_predictions.get(match.fixture.id | string) %}
                                                                 {% if dateutil.parser.isoparse(match.fixture.date) > datetime.now(timezone.utc) %}
-                                                                    <!-- Включен режим редактирования для этого матча? -->
                                                                     {% if request.args.get('action') == 'edit' and request.args.get('match_id') == (match.fixture.id | string) %}
-
-                                                                        <!-- ===== НАЧАЛО ИСПРАВЛЕНИЯ ===== -->
-                                                                        <!-- Здесь должна быть форма для ввода счета, а не кнопка "Leave" -->
-                                                                        <form action="{{ url_for('tournaments.make_prediction', tournament_id=tournament.id) }}" method="post" class="form-inline justify-content-center">
+                                                                        <form action="{{ url_for('tournaments.make_prediction', tournament_id=tournament.id) }}" method="post" class="form-inline justify-content-center prediction-form">
                                                                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                                                             <input type="hidden" name="match_id" value="{{ match.fixture.id }}">
                                                                             <input type="number" name="home_score_{{ match.fixture.id }}" class="form-control form-control-sm" style="width: 60px;" value="{{ prediction.home_score_prediction if prediction else '' }}" min="0">
@@ -56,10 +129,7 @@
                                                                             <input type="number" name="away_score_{{ match.fixture.id }}" class="form-control form-control-sm" style="width: 60px;" value="{{ prediction.away_score_prediction if prediction else '' }}" min="0">
                                                                             <button type="submit" class="btn btn-primary btn-sm ml-2">Save</button>
                                                                         </form>
-                                                                        <!-- ===== КОНЕЦ ИСПРАВЛЕНИЯ ===== -->
-
                                                                     {% else %}
-                                                                        <!-- Показываем прогноз или кнопку "Edit/Predict" -->
                                                                         {% if prediction %}
                                                                             <strong>{{ prediction.home_score_prediction }} : {{ prediction.away_score_prediction }}</strong>
                                                                             <a href="{{ url_for('tournaments.tournament_details', tournament_id=tournament.id, action='edit', match_id=match.fixture.id, _anchor='match-' ~ match.fixture.id) }}" class="btn btn-info btn-sm ml-2">Edit</a>
@@ -68,7 +138,6 @@
                                                                         {% endif %}
                                                                     {% endif %}
                                                                 {% else %}
-                                                                    <!-- Матч уже начался, показываем прогноз без возможности редактирования -->
                                                                     {% if prediction and prediction.home_score_prediction is not none %}
                                                                         <strong>{{ prediction.home_score_prediction }} : {{ prediction.away_score_prediction }}</strong>
                                                                     {% else %}
@@ -79,7 +148,7 @@
                                                                 - : -
                                                             {% endif %}
                                                         </td>
-                                                        <td class="text-center">
+                                                        <td data-label="Points" class="text-center">
                                                             {% if prediction and prediction.points_awarded > 0 %}
                                                                 <strong style="color: #00f2c3;">+{{ prediction.points_awarded }}</strong>
                                                             {% elif prediction and prediction.home_score_actual is not none %}

@@ -1,18 +1,21 @@
-# Базы данных
+# База данных
 *.db
 *.sqlite3
+
+# Загруженные пользователями файлы
+/app/static/uploads/
 
 # Виртуальное окружение
 venv/
 .venv/
-__pycache__/
 
-# Загруженные пользователями файлы
-/app/static/uploads/
+# Кэш Python
+__pycache__/
+*.pyc
 
 # Файлы IDE
 .idea/
 .vscode/
 
-# Файлы окружения
+# Секреты
 .env
